@@ -2,7 +2,12 @@ import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-export function RutaProtegida({ children }: { children: ReactNode }) {
+interface RutaProtegidaProps {
+  children: ReactNode;
+  rolesPermitidos?: Array<'Admin' | 'Empleado'>;
+}
+
+export function RutaProtegida({ children, rolesPermitidos }: RutaProtegidaProps) {
   const { usuario, cargando } = useAuth();
 
   if (cargando) {
@@ -13,6 +18,10 @@ export function RutaProtegida({ children }: { children: ReactNode }) {
 
   if (!usuario) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (rolesPermitidos && !rolesPermitidos.includes(usuario.rol)) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

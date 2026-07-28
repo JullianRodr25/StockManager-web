@@ -4,6 +4,8 @@ import { RutaProtegida } from './components/RutaProtegida';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Inventario } from './pages/Inventario';
+import { EtiquetasPendientes } from './pages/EtiquetasPendientes';
 import { PaginaProximamente } from './pages/PaginaProximamente';
 
 function App() {
@@ -20,7 +22,15 @@ function App() {
             }
           >
             <Route path="/" element={<Dashboard />} />
-            <Route path="/inventario" element={<PaginaProximamente titulo="Inventario" />} />
+            <Route path="/inventario" element={<Inventario />} />
+            <Route
+              path="/inventario/etiquetas"
+              element={
+                <RutaProtegida rolesPermitidos={['Admin']}>
+                  <EtiquetasPendientes />
+                </RutaProtegida>
+              }
+            />
             <Route path="/ventas" element={<PaginaProximamente titulo="Ventas" />} />
             <Route path="/pedidos" element={<PaginaProximamente titulo="Pedidos" />} />
             <Route path="/clientes" element={<PaginaProximamente titulo="Clientes" />} />
@@ -35,4 +45,5 @@ function App() {
 }
 
 export default App;
+
 

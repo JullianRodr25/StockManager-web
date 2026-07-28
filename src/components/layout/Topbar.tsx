@@ -19,6 +19,7 @@ const ALERTAS_PENDIENTES = 3;
 const TITULOS_POR_RUTA: Record<string, string> = {
   '/': 'Dashboard',
   '/inventario': 'Inventario',
+  '/inventario/etiquetas': 'Etiquetas pendientes',
   '/ventas': 'Ventas',
   '/pedidos': 'Pedidos',
   '/clientes': 'Clientes',

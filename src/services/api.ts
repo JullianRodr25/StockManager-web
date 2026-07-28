@@ -25,10 +25,14 @@ export async function apiRequest<TResponse>(
   options: RequestOptions = {}
 ): Promise<TResponse> {
   const { method = 'GET', body, token } = options;
+  const esFormData = body instanceof FormData;
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = {};
+  if (!esFormData) {
+    // Para FormData (subida de archivos) el navegador debe fijar el
+    // Content-Type con el boundary correcto; no se debe sobreescribir.
+    headers['Content-Type'] = 'application/json';
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -36,7 +40,7 @@ export async function apiRequest<TResponse>(
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: esFormData ? (body as FormData) : body ? JSON.stringify(body) : undefined,
   });
 
   if (!response.ok) {

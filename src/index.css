@@ -50,3 +50,24 @@
     min-height: 100vh;
   }
 }
+
+/* Impresión de etiquetas: al imprimir, solo se muestra la grilla de
+   etiquetas generadas en src/pages/EtiquetasPendientes.tsx; el resto
+   del layout (sidebar, topbar, controles) se oculta. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #etiquetas-para-imprimir,
+  #etiquetas-para-imprimir * {
+    visibility: visible;
+  }
+
+  #etiquetas-para-imprimir {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
