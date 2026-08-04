@@ -10,6 +10,9 @@ export interface JwtPayload {
   given_name: string; // Nombre
   TipoUsuario: 'Empleado' | 'Cliente';
   role?: string; // Solo presente para Empleado
+  // .NET (AddJwtBearer con ClaimTypes.Role) emite el claim de rol con
+  // esta clave larga en lugar de "role"; se soportan ambas.
+  'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'?: string;
   exp: number;
   iss: string;
   aud: string;

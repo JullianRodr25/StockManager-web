@@ -1,21 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
-import { Barcode, Loader2, Plus, Search, Upload, X } from 'lucide-react';
+import { Barcode, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
 import {
+  actualizarProducto,
   buscarProductoPorCodigoBarras,
   crearProducto,
+  desactivarProducto,
   importarProductos,
   obtenerCategorias,
   obtenerProductos,
+  reactivarProducto,
 } from '@/services/inventarioService';
 import type {
+  ActualizarProductoRequest,
   Categoria,
   CrearProductoRequest,
   ImportarProductosResponse,
   Producto,
 } from '@/types/inventario';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -35,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
@@ -88,6 +105,12 @@ export function Inventario() {
   const [formulario, setFormulario] = useState<NuevoProductoForm>(formularioVacio);
   const [guardando, setGuardando] = useState(false);
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
+  const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
+
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [productoParaDesactivar, setProductoParaDesactivar] = useState<Producto | null>(null);
+  const [desactivando, setDesactivando] = useState(false);
+  const [procesandoReactivarId, setProcesandoReactivarId] = useState<number | null>(null);
 
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const [importando, setImportando] = useState(false);
@@ -137,10 +160,16 @@ export function Inventario() {
   }
 
   const productosFiltrados = useMemo(() => {
-    if (!busqueda.trim()) return productos;
-    const termino = busqueda.trim().toLowerCase();
-    return productos.filter((producto) => producto.nombre.toLowerCase().includes(termino));
-  }, [productos, busqueda]);
+    let lista = productos;
+    if (!esAdmin || !mostrarInactivos) {
+      lista = lista.filter((producto) => producto.activo);
+    }
+    if (busqueda.trim()) {
+      const termino = busqueda.trim().toLowerCase();
+      lista = lista.filter((producto) => producto.nombre.toLowerCase().includes(termino));
+    }
+    return lista;
+  }, [productos, busqueda, esAdmin, mostrarInactivos]);
 
   const categoriaPorId = useMemo(
     () => new Map(categorias.map((c) => [c.id, c.nombre])),
@@ -179,12 +208,34 @@ export function Inventario() {
   }
 
   function abrirDialogNuevo() {
+    setProductoEditando(null);
     setFormulario(formularioVacio);
     setErrorFormulario(null);
     setDialogNuevoAbierto(true);
   }
 
-  async function handleCrearProducto(e: FormEvent) {
+  function abrirDialogEditar(producto: Producto) {
+    setProductoEditando(producto);
+    setFormulario({
+      nombre: producto.nombre,
+      categoriaId: String(producto.categoriaId),
+      precio: String(producto.precio),
+      stockInicial: '',
+      stockMinimo: String(producto.stockMinimo),
+      codigoBarras: producto.codigoBarras ?? '',
+    });
+    setErrorFormulario(null);
+    setDialogNuevoAbierto(true);
+  }
+
+  function cerrarDialogProducto(abierto: boolean) {
+    setDialogNuevoAbierto(abierto);
+    if (!abierto) {
+      setProductoEditando(null);
+    }
+  }
+
+  async function handleGuardarProducto(e: FormEvent) {
     e.preventDefault();
     setErrorFormulario(null);
 
@@ -193,34 +244,47 @@ export function Inventario() {
     const stockMinimo = Number(formulario.stockMinimo);
     const categoriaId = Number(formulario.categoriaId);
 
-    if (
-      !formulario.nombre.trim() ||
-      !categoriaId ||
-      Number.isNaN(precio) ||
-      Number.isNaN(stockInicial) ||
-      Number.isNaN(stockMinimo)
-    ) {
+    const camposBasicosInvalidos =
+      !formulario.nombre.trim() || !categoriaId || Number.isNaN(precio) || Number.isNaN(stockMinimo);
+
+    if (camposBasicosInvalidos || (!productoEditando && Number.isNaN(stockInicial))) {
       setErrorFormulario('Completa todos los campos obligatorios con valores válidos.');
       return;
     }
 
-    const data: CrearProductoRequest = {
-      nombre: formulario.nombre.trim(),
-      categoriaId,
-      precio,
-      stockInicial,
-      stockMinimo,
-      ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
-    };
-
     setGuardando(true);
     try {
-      await crearProducto(data, token);
+      if (productoEditando) {
+        const data: ActualizarProductoRequest = {
+          nombre: formulario.nombre.trim(),
+          categoriaId,
+          precio,
+          stockMinimo,
+          ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
+        };
+        await actualizarProducto(productoEditando.id, data, token);
+        toast.success('Producto actualizado correctamente');
+      } else {
+        const data: CrearProductoRequest = {
+          nombre: formulario.nombre.trim(),
+          categoriaId,
+          precio,
+          stockInicial,
+          stockMinimo,
+          ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
+        };
+        await crearProducto(data, token);
+        toast.success(`Producto "${data.nombre}" creado correctamente`);
+      }
+
       setDialogNuevoAbierto(false);
+      setProductoEditando(null);
       const categoriaIdFiltro = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
       await cargarProductos(pagina, categoriaIdFiltro);
     } catch (err) {
-      setErrorFormulario(err instanceof ApiError ? err.message : 'No se pudo crear el producto.');
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudo guardar el producto.';
+      setErrorFormulario(mensaje);
+      toast.error(mensaje);
     } finally {
       setGuardando(false);
     }
@@ -241,15 +305,131 @@ export function Inventario() {
       const resultado = await importarProductos(archivo, token);
       setResultadoImportacion(resultado);
       setDialogImportacionAbierto(true);
+      if (resultado.errores.length === 0) {
+        toast.success(`${resultado.creados} de ${resultado.totalFilas} productos importados`);
+      } else {
+        toast.warning(`${resultado.creados} importados, ${resultado.errores.length} con errores`);
+      }
       const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
       await cargarProductos(pagina, categoriaId);
     } catch (err) {
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudo importar el archivo.';
       setResultadoImportacion(null);
-      setErrorImportacion(err instanceof ApiError ? err.message : 'No se pudo importar el archivo.');
+      setErrorImportacion(mensaje);
       setDialogImportacionAbierto(true);
+      toast.error(mensaje);
     } finally {
       setImportando(false);
     }
+  }
+
+  function pedirConfirmacionDesactivar(producto: Producto) {
+    setProductoParaDesactivar(producto);
+  }
+
+  async function handleConfirmarDesactivar() {
+    if (!productoParaDesactivar) return;
+    const producto = productoParaDesactivar;
+
+    setDesactivando(true);
+    try {
+      await desactivarProducto(producto.id, token);
+      toast.success('Producto desactivado');
+      setProductoParaDesactivar(null);
+      if (productoEncontradoPorCodigo?.id === producto.id) {
+        setProductoEncontradoPorCodigo(null);
+      }
+      const categoriaIdFiltro = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
+      await cargarProductos(pagina, categoriaIdFiltro);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo desactivar el producto.');
+    } finally {
+      setDesactivando(false);
+    }
+  }
+
+  async function handleReactivar(producto: Producto) {
+    setProcesandoReactivarId(producto.id);
+    try {
+      await reactivarProducto(producto.id, token);
+      toast.success('Producto reactivado');
+      if (productoEncontradoPorCodigo?.id === producto.id) {
+        setProductoEncontradoPorCodigo(null);
+      }
+      const categoriaIdFiltro = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
+      await cargarProductos(pagina, categoriaIdFiltro);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo reactivar el producto.');
+    } finally {
+      setProcesandoReactivarId(null);
+    }
+  }
+
+  function renderFilaProducto(producto: Producto) {
+    const sinStock = producto.stockActual <= 0;
+    const stockBajo = !sinStock && producto.stockActual <= producto.stockMinimo;
+    const reactivando = procesandoReactivarId === producto.id;
+
+    return (
+      <TableRow key={producto.id} className={cn(!producto.activo && 'opacity-50')}>
+        <TableCell className="font-medium text-navy">
+          <span className="flex items-center gap-2">
+            {producto.nombre}
+            {!producto.activo && <Badge variant="outline">Inactivo</Badge>}
+          </span>
+        </TableCell>
+        <TableCell className="text-navy">{categoriaPorId.get(producto.categoriaId) ?? '—'}</TableCell>
+        <TableCell className="text-navy">{formatoMoneda.format(producto.precio)}</TableCell>
+        <TableCell
+          className={cn(
+            'font-semibold',
+            sinStock ? 'text-error-text' : stockBajo ? 'text-gold' : 'text-navy'
+          )}
+        >
+          {producto.stockActual}
+        </TableCell>
+        <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
+        <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
+        {esAdmin && (
+          <TableCell>
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Editar ${producto.nombre}`}
+                onClick={() => abrirDialogEditar(producto)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              {producto.activo ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Desactivar ${producto.nombre}`}
+                  onClick={() => pedirConfirmacionDesactivar(producto)}
+                >
+                  <Trash2 className="h-4 w-4 text-error-text" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Reactivar ${producto.nombre}`}
+                  disabled={reactivando}
+                  onClick={() => handleReactivar(producto)}
+                >
+                  {reactivando ? (
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4 text-green" />
+                  )}
+                </Button>
+              )}
+            </div>
+          </TableCell>
+        )}
+      </TableRow>
+    );
   }
 
   return (
@@ -298,6 +478,13 @@ export function Inventario() {
               Limpiar búsqueda
             </Button>
           )}
+
+          {esAdmin && (
+            <label className="flex items-center gap-2 whitespace-nowrap text-sm text-text-muted">
+              <Switch checked={mostrarInactivos} onCheckedChange={setMostrarInactivos} />
+              Mostrar inactivos
+            </label>
+          )}
         </div>
 
         {esAdmin && (
@@ -344,66 +531,26 @@ export function Inventario() {
                 <TableHead>Stock actual</TableHead>
                 <TableHead>Stock mínimo</TableHead>
                 <TableHead>Código de barras</TableHead>
+                {esAdmin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {productoEncontradoPorCodigo ? (
-                (() => {
-                  const producto = productoEncontradoPorCodigo;
-                  const sinStock = producto.stockActual <= 0;
-                  const stockBajo = !sinStock && producto.stockActual <= producto.stockMinimo;
-                  return (
-                    <TableRow key={producto.id}>
-                      <TableCell className="font-medium text-navy">{producto.nombre}</TableCell>
-                      <TableCell className="text-navy">{categoriaPorId.get(producto.categoriaId) ?? '—'}</TableCell>
-                      <TableCell className="text-navy">{formatoMoneda.format(producto.precio)}</TableCell>
-                      <TableCell
-                        className={cn(
-                          'font-semibold',
-                          sinStock ? 'text-error-text' : stockBajo ? 'text-gold' : 'text-navy'
-                        )}
-                      >
-                        {producto.stockActual}
-                      </TableCell>
-                      <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
-                      <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
-                    </TableRow>
-                  );
-                })()
+                renderFilaProducto(productoEncontradoPorCodigo)
               ) : cargando ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 7 : 6} className="py-8 text-center text-text-muted">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
                   </TableCell>
                 </TableRow>
               ) : productosFiltrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 7 : 6} className="py-8 text-center text-text-muted">
                     No se encontraron productos.
                   </TableCell>
                 </TableRow>
               ) : (
-                productosFiltrados.map((producto) => {
-                  const sinStock = producto.stockActual <= 0;
-                  const stockBajo = !sinStock && producto.stockActual <= producto.stockMinimo;
-                  return (
-                    <TableRow key={producto.id}>
-                      <TableCell className="font-medium text-navy">{producto.nombre}</TableCell>
-                      <TableCell className="text-navy">{categoriaPorId.get(producto.categoriaId) ?? '—'}</TableCell>
-                      <TableCell className="text-navy">{formatoMoneda.format(producto.precio)}</TableCell>
-                      <TableCell
-                        className={cn(
-                          'font-semibold',
-                          sinStock ? 'text-error-text' : stockBajo ? 'text-gold' : 'text-navy'
-                        )}
-                      >
-                        {producto.stockActual}
-                      </TableCell>
-                      <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
-                      <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
-                    </TableRow>
-                  );
-                })
+                productosFiltrados.map((producto) => renderFilaProducto(producto))
               )}
             </TableBody>
           </Table>
@@ -431,14 +578,18 @@ export function Inventario() {
         </div>
       )}
 
-      <Dialog open={dialogNuevoAbierto} onOpenChange={setDialogNuevoAbierto}>
+      <Dialog open={dialogNuevoAbierto} onOpenChange={cerrarDialogProducto}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nuevo producto</DialogTitle>
-            <DialogDescription>Registra un producto nuevo en el inventario.</DialogDescription>
+            <DialogTitle>{productoEditando ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
+            <DialogDescription>
+              {productoEditando
+                ? 'Actualiza los datos del producto. El stock actual no se edita aquí.'
+                : 'Registra un producto nuevo en el inventario.'}
+            </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCrearProducto} className="space-y-4">
+          <form onSubmit={handleGuardarProducto} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="nombre">Nombre</Label>
               <Input
@@ -468,7 +619,7 @@ export function Inventario() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className={cn('grid grid-cols-1 gap-4', productoEditando ? 'sm:grid-cols-2' : 'sm:grid-cols-3')}>
               <div className="space-y-2">
                 <Label htmlFor="precio">Precio</Label>
                 <Input
@@ -481,17 +632,19 @@ export function Inventario() {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="stockInicial">Stock inicial</Label>
-                <Input
-                  id="stockInicial"
-                  type="number"
-                  min="0"
-                  value={formulario.stockInicial}
-                  onChange={(e) => actualizarCampoFormulario('stockInicial', e.target.value)}
-                  required
-                />
-              </div>
+              {!productoEditando && (
+                <div className="space-y-2">
+                  <Label htmlFor="stockInicial">Stock inicial</Label>
+                  <Input
+                    id="stockInicial"
+                    type="number"
+                    min="0"
+                    value={formulario.stockInicial}
+                    onChange={(e) => actualizarCampoFormulario('stockInicial', e.target.value)}
+                    required
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="stockMinimo">Stock mínimo</Label>
                 <Input
@@ -524,11 +677,11 @@ export function Inventario() {
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogNuevoAbierto(false)}>
+              <Button type="button" variant="outline" onClick={() => cerrarDialogProducto(false)}>
                 Cancelar
               </Button>
               <Button type="submit" variant="gold" disabled={guardando}>
-                {guardando ? 'Guardando...' : 'Guardar producto'}
+                {guardando ? 'Guardando...' : productoEditando ? 'Guardar cambios' : 'Guardar producto'}
               </Button>
             </DialogFooter>
           </form>
@@ -584,6 +737,34 @@ export function Inventario() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={productoParaDesactivar !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setProductoParaDesactivar(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Desactivar este producto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ya no aparecerá disponible para vender, pero su historial se conserva.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={desactivando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={desactivando}
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmarDesactivar();
+              }}
+            >
+              {desactivando ? 'Desactivando...' : 'Desactivar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

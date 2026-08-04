@@ -24,7 +24,8 @@ function construirUsuarioDesdeToken(token: string): EmpleadoAutenticado | null {
     id: payload.sub,
     numeroIdentificacion: payload.unique_name,
     nombre: payload.given_name,
-    rol: (payload.role as 'Admin' | 'Empleado') ?? 'Empleado',
+    rol: (payload.role ??
+      payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']) as 'Admin' | 'Empleado',
   };
 }
 

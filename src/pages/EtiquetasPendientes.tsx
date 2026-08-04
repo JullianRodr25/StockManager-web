@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Printer, Tag } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
 import { generarEtiquetas, obtenerEtiquetasPendientes } from '@/services/inventarioService';
@@ -64,9 +65,12 @@ export function EtiquetasPendientes() {
     try {
       const respuesta = await generarEtiquetas(Array.from(seleccionados), token);
       setEtiquetasGeneradas(respuesta.etiquetas);
+      toast.success(`${respuesta.total} etiqueta(s) generada(s) correctamente`);
       await cargarPendientes();
     } catch (err) {
-      setErrorGenerar(err instanceof ApiError ? err.message : 'No se pudieron generar las etiquetas.');
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudieron generar las etiquetas.';
+      setErrorGenerar(mensaje);
+      toast.error(mensaje);
     } finally {
       setGenerando(false);
     }

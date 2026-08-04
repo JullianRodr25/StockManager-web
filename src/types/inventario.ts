@@ -15,6 +15,7 @@ export interface Producto {
   stockActual: number;
   stockMinimo: number;
   codigoBarras: string | null;
+  activo: boolean;
 }
 
 export interface ProductosPaginados {
@@ -30,6 +31,16 @@ export interface CrearProductoRequest {
   categoriaId: number;
   precio: number;
   stockInicial: number;
+  stockMinimo: number;
+  codigoBarras?: string;
+}
+
+// Igual que CrearProductoRequest pero sin stockInicial: el stock actual
+// no se edita desde este formulario, solo desde ventas/movimientos.
+export interface ActualizarProductoRequest {
+  nombre: string;
+  categoriaId: number;
+  precio: number;
   stockMinimo: number;
   codigoBarras?: string;
 }

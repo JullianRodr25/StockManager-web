@@ -1,5 +1,6 @@
 import { apiRequest } from './api';
 import type {
+  ActualizarProductoRequest,
   Categoria,
   CrearProductoRequest,
   EtiquetasPendientesResponse,
@@ -55,6 +56,32 @@ export async function crearProducto(
   return apiRequest<Producto>('/api/productos', {
     method: 'POST',
     body: data,
+    token,
+  });
+}
+
+export async function actualizarProducto(
+  id: number,
+  data: ActualizarProductoRequest,
+  token: string | null
+): Promise<Producto> {
+  return apiRequest<Producto>(`/api/productos/${id}`, {
+    method: 'PUT',
+    body: data,
+    token,
+  });
+}
+
+export async function desactivarProducto(id: number, token: string | null): Promise<void> {
+  return apiRequest<void>(`/api/productos/${id}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
+export async function reactivarProducto(id: number, token: string | null): Promise<void> {
+  return apiRequest<void>(`/api/productos/${id}/reactivar`, {
+    method: 'PATCH',
     token,
   });
 }
