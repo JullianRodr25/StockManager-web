@@ -14,6 +14,7 @@ import {
   obtenerProductos,
   reactivarProducto,
 } from '@/services/inventarioService';
+import { obtenerConfiguracion } from '@/services/configuracionService';
 import type {
   ActualizarProductoRequest,
   Categoria,
@@ -70,6 +71,7 @@ interface NuevoProductoForm {
   stockInicial: string;
   stockMinimo: string;
   codigoBarras: string;
+  tarifaIva: string;
 }
 
 const formularioVacio: NuevoProductoForm = {
@@ -79,6 +81,7 @@ const formularioVacio: NuevoProductoForm = {
   stockInicial: '',
   stockMinimo: '',
   codigoBarras: '',
+  tarifaIva: '',
 };
 
 export function Inventario() {
@@ -95,6 +98,7 @@ export function Inventario() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas');
   const [busqueda, setBusqueda] = useState('');
+  const [tarifaIvaGeneral, setTarifaIvaGeneral] = useState<number | null>(null);
 
   const [codigoBarrasBusqueda, setCodigoBarrasBusqueda] = useState('');
   const [buscandoPorCodigo, setBuscandoPorCodigo] = useState(false);
@@ -143,6 +147,15 @@ export function Inventario() {
       .catch(() => {
         // Si fallan las categorías, el filtro simplemente queda vacío;
         // la tabla de productos puede seguir funcionando sin filtro.
+      });
+  }, [token]);
+
+  useEffect(() => {
+    obtenerConfiguracion(token)
+      .then((configuracion) => setTarifaIvaGeneral(configuracion.tarifaIvaPorDefecto))
+      .catch(() => {
+        // Si falla, el campo de IVA del formulario simplemente queda vacío
+        // y el usuario puede escribir el valor manualmente.
       });
   }, [token]);
 
@@ -209,7 +222,10 @@ export function Inventario() {
 
   function abrirDialogNuevo() {
     setProductoEditando(null);
-    setFormulario(formularioVacio);
+    setFormulario({
+      ...formularioVacio,
+      tarifaIva: tarifaIvaGeneral !== null ? String(tarifaIvaGeneral) : '',
+    });
     setErrorFormulario(null);
     setDialogNuevoAbierto(true);
   }
@@ -223,6 +239,7 @@ export function Inventario() {
       stockInicial: '',
       stockMinimo: String(producto.stockMinimo),
       codigoBarras: producto.codigoBarras ?? '',
+      tarifaIva: String(producto.tarifaIva),
     });
     setErrorFormulario(null);
     setDialogNuevoAbierto(true);
@@ -243,12 +260,15 @@ export function Inventario() {
     const stockInicial = Number(formulario.stockInicial);
     const stockMinimo = Number(formulario.stockMinimo);
     const categoriaId = Number(formulario.categoriaId);
+    const tarifaIva = Number(formulario.tarifaIva);
 
     const camposBasicosInvalidos =
       !formulario.nombre.trim() || !categoriaId || Number.isNaN(precio) || Number.isNaN(stockMinimo);
+    const tarifaIvaInvalida =
+      formulario.tarifaIva.trim() === '' || Number.isNaN(tarifaIva) || tarifaIva < 0 || tarifaIva > 100;
 
-    if (camposBasicosInvalidos || (!productoEditando && Number.isNaN(stockInicial))) {
-      setErrorFormulario('Completa todos los campos obligatorios con valores válidos.');
+    if (camposBasicosInvalidos || tarifaIvaInvalida || (!productoEditando && Number.isNaN(stockInicial))) {
+      setErrorFormulario('Completa todos los campos obligatorios con valores válidos. El IVA debe estar entre 0 y 100.');
       return;
     }
 
@@ -260,6 +280,7 @@ export function Inventario() {
           categoriaId,
           precio,
           stockMinimo,
+          tarifaIva,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
         };
         await actualizarProducto(productoEditando.id, data, token);
@@ -271,6 +292,7 @@ export function Inventario() {
           precio,
           stockInicial,
           stockMinimo,
+          tarifaIva,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
         };
         await crearProducto(data, token);
@@ -380,6 +402,10 @@ export function Inventario() {
         </TableCell>
         <TableCell className="text-navy">{categoriaPorId.get(producto.categoriaId) ?? '—'}</TableCell>
         <TableCell className="text-navy">{formatoMoneda.format(producto.precio)}</TableCell>
+        <TableCell className="text-navy">{producto.tarifaIva}%</TableCell>
+        <TableCell className="text-text-muted">
+          {formatoMoneda.format(producto.precio * (1 + producto.tarifaIva / 100))}
+        </TableCell>
         <TableCell
           className={cn(
             'font-semibold',
@@ -508,6 +534,13 @@ export function Inventario() {
         )}
       </div>
 
+      {esAdmin && (
+        <p className="text-xs text-text-muted">
+          Columnas del Excel: Nombre, Categoría, Precio, StockInicial, StockMinimo, CodigoBarras (opcional),
+          TarifaIva (opcional; si se deja vacía se aplica el IVA general vigente).
+        </p>
+      )}
+
       {error && (
         <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
           {error}
@@ -528,6 +561,8 @@ export function Inventario() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead>Precio</TableHead>
+                <TableHead>IVA (%)</TableHead>
+                <TableHead>Precio c/IVA</TableHead>
                 <TableHead>Stock actual</TableHead>
                 <TableHead>Stock mínimo</TableHead>
                 <TableHead>Código de barras</TableHead>
@@ -539,13 +574,13 @@ export function Inventario() {
                 renderFilaProducto(productoEncontradoPorCodigo)
               ) : cargando ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 7 : 6} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 9 : 8} className="py-8 text-center text-text-muted">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
                   </TableCell>
                 </TableRow>
               ) : productosFiltrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 7 : 6} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 9 : 8} className="py-8 text-center text-text-muted">
                     No se encontraron productos.
                   </TableCell>
                 </TableRow>
@@ -619,7 +654,7 @@ export function Inventario() {
               </Select>
             </div>
 
-            <div className={cn('grid grid-cols-1 gap-4', productoEditando ? 'sm:grid-cols-2' : 'sm:grid-cols-3')}>
+            <div className={cn('grid grid-cols-1 gap-4', productoEditando ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
               <div className="space-y-2">
                 <Label htmlFor="precio">Precio</Label>
                 <Input
@@ -655,6 +690,28 @@ export function Inventario() {
                   onChange={(e) => actualizarCampoFormulario('stockMinimo', e.target.value)}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tarifaIva">IVA (%)</Label>
+                <div className="relative">
+                  <Input
+                    id="tarifaIva"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={formulario.tarifaIva}
+                    onChange={(e) => actualizarCampoFormulario('tarifaIva', e.target.value)}
+                    className="pr-8"
+                    required
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
+                    %
+                  </span>
+                </div>
+                {!productoEditando && tarifaIvaGeneral !== null && (
+                  <p className="text-xs text-text-muted">Tarifa general vigente: {tarifaIvaGeneral}%</p>
+                )}
               </div>
             </div>
 

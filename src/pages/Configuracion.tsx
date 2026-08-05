@@ -1,23 +1,49 @@
-import { useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
-import { ImagePlus, RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { ImagePlus, Loader2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
+import { ApiError } from '@/services/api';
+import { actualizarConfiguracion, obtenerConfiguracion } from '@/services/configuracionService';
+import type { ConfiguracionGeneral } from '@/types/configuracion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 
 const TAMANO_MAXIMO_BYTES = 3 * 1024 * 1024; // 3 MB
 
 export function Configuracion() {
-  const { usuario } = useAuth();
+  const { usuario, token } = useAuth();
   const esAdmin = usuario?.rol === 'Admin';
   const { logoUrl, esLogoPersonalizado, actualizarLogo, restaurarLogoPredeterminado } = useLogo();
 
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const [cargandoLogo, setCargandoLogo] = useState(false);
   const [errorLogo, setErrorLogo] = useState<string | null>(null);
+
+  const [configuracion, setConfiguracion] = useState<ConfiguracionGeneral | null>(null);
+  const [cargandoConfiguracion, setCargandoConfiguracion] = useState(true);
+  const [errorConfiguracion, setErrorConfiguracion] = useState<string | null>(null);
+  const [tarifaIvaInput, setTarifaIvaInput] = useState('');
+  const [guardandoIva, setGuardandoIva] = useState(false);
+  const [errorIva, setErrorIva] = useState<string | null>(null);
+
+  useEffect(() => {
+    obtenerConfiguracion(token)
+      .then((data) => {
+        setConfiguracion(data);
+        setTarifaIvaInput(String(data.tarifaIvaPorDefecto));
+      })
+      .catch((err) => {
+        setErrorConfiguracion(
+          err instanceof ApiError ? err.message : 'No se pudo cargar la configuración.'
+        );
+      })
+      .finally(() => setCargandoConfiguracion(false));
+  }, [token]);
 
   function handleClickCambiarLogo() {
     inputArchivoRef.current?.click();
@@ -56,6 +82,31 @@ export function Configuracion() {
   function handleRestaurarLogo() {
     restaurarLogoPredeterminado();
     toast.success('Se restauró el logo predeterminado');
+  }
+
+  async function handleGuardarIva(e: FormEvent) {
+    e.preventDefault();
+    setErrorIva(null);
+
+    const valor = Number(tarifaIvaInput);
+    if (tarifaIvaInput.trim() === '' || Number.isNaN(valor) || valor < 0 || valor > 100) {
+      setErrorIva('Ingresa una tarifa válida entre 0 y 100.');
+      return;
+    }
+
+    setGuardandoIva(true);
+    try {
+      const actualizado = await actualizarConfiguracion({ tarifaIvaPorDefecto: valor }, token);
+      setConfiguracion(actualizado);
+      setTarifaIvaInput(String(actualizado.tarifaIvaPorDefecto));
+      toast.success('Tarifa de IVA actualizada correctamente');
+    } catch (err) {
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudo actualizar la tarifa de IVA.';
+      setErrorIva(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setGuardandoIva(false);
+    }
   }
 
   return (
@@ -121,6 +172,63 @@ export function Configuracion() {
               </p>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle className="text-navy">Tarifa de IVA general</CardTitle>
+          <CardDescription>
+            Se aplica por defecto a los productos nuevos que no especifiquen una tarifa propia.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {cargandoConfiguracion ? (
+            <div className="flex items-center gap-2 text-sm text-text-muted">
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              Cargando tarifa vigente...
+            </div>
+          ) : errorConfiguracion ? (
+            <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+              {errorConfiguracion}
+            </div>
+          ) : esAdmin ? (
+            <form onSubmit={handleGuardarIva} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="tarifaIvaPorDefecto">IVA (%)</Label>
+                <div className="relative max-w-[10rem]">
+                  <Input
+                    id="tarifaIvaPorDefecto"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={tarifaIvaInput}
+                    onChange={(e) => setTarifaIvaInput(e.target.value)}
+                    className="pr-8"
+                    required
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
+                    %
+                  </span>
+                </div>
+              </div>
+
+              {errorIva && (
+                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                  {errorIva}
+                </div>
+              )}
+
+              <Button type="submit" variant="gold" disabled={guardandoIva}>
+                {guardandoIva ? 'Guardando...' : 'Guardar tarifa'}
+              </Button>
+            </form>
+          ) : (
+            <p className="text-sm text-navy">
+              Tarifa vigente: <span className="font-semibold">{configuracion?.tarifaIvaPorDefecto}%</span>
+            </p>
+          )}
         </CardContent>
       </Card>
 

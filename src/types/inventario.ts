@@ -16,6 +16,7 @@ export interface Producto {
   stockMinimo: number;
   codigoBarras: string | null;
   activo: boolean;
+  tarifaIva: number;
 }
 
 export interface ProductosPaginados {
@@ -33,6 +34,7 @@ export interface CrearProductoRequest {
   stockInicial: number;
   stockMinimo: number;
   codigoBarras?: string;
+  tarifaIva?: number;
 }
 
 // Igual que CrearProductoRequest pero sin stockInicial: el stock actual
@@ -43,6 +45,7 @@ export interface ActualizarProductoRequest {
   precio: number;
   stockMinimo: number;
   codigoBarras?: string;
+  tarifaIva?: number;
 }
 
 export interface ImportarProductoError {
