@@ -19,6 +19,8 @@ import type {
   ActualizarProductoRequest,
   Categoria,
   CrearProductoRequest,
+  ImportarProductoError,
+  ImportarProductosErrorResponse,
   ImportarProductosResponse,
   Producto,
 } from '@/types/inventario';
@@ -84,6 +86,20 @@ const formularioVacio: NuevoProductoForm = {
   tarifaIva: '',
 };
 
+function obtenerErroresImportacion(data: unknown): ImportarProductoError[] {
+  if (!data || typeof data !== 'object' || !('errores' in data) || !Array.isArray(data.errores)) {
+    return [];
+  }
+
+  return (data as ImportarProductosErrorResponse).errores.filter(
+    (error): error is ImportarProductoError =>
+      typeof error === 'object' &&
+      error !== null &&
+      typeof error.fila === 'number' &&
+      typeof error.mensaje === 'string'
+  );
+}
+
 export function Inventario() {
   const { usuario, token } = useAuth();
   const esAdmin = usuario?.rol === 'Admin';
@@ -108,6 +124,7 @@ export function Inventario() {
   const [dialogNuevoAbierto, setDialogNuevoAbierto] = useState(false);
   const [formulario, setFormulario] = useState<NuevoProductoForm>(formularioVacio);
   const [guardando, setGuardando] = useState(false);
+  const guardadoEnCursoRef = useRef(false);
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
 
@@ -121,6 +138,7 @@ export function Inventario() {
   const [resultadoImportacion, setResultadoImportacion] = useState<ImportarProductosResponse | null>(null);
   const [dialogImportacionAbierto, setDialogImportacionAbierto] = useState(false);
   const [errorImportacion, setErrorImportacion] = useState<string | null>(null);
+  const [erroresImportacion, setErroresImportacion] = useState<ImportarProductoError[]>([]);
 
   const cargarProductos = useCallback(
     async (paginaSolicitada: number, categoriaId: number | undefined) => {
@@ -254,6 +272,7 @@ export function Inventario() {
 
   async function handleGuardarProducto(e: FormEvent) {
     e.preventDefault();
+    if (guardadoEnCursoRef.current) return;
     setErrorFormulario(null);
 
     const precio = Number(formulario.precio);
@@ -272,6 +291,7 @@ export function Inventario() {
       return;
     }
 
+    guardadoEnCursoRef.current = true;
     setGuardando(true);
     try {
       if (productoEditando) {
@@ -308,6 +328,7 @@ export function Inventario() {
       setErrorFormulario(mensaje);
       toast.error(mensaje);
     } finally {
+      guardadoEnCursoRef.current = false;
       setGuardando(false);
     }
   }
@@ -323,6 +344,8 @@ export function Inventario() {
 
     setImportando(true);
     setErrorImportacion(null);
+    setErroresImportacion([]);
+    setResultadoImportacion(null);
     try {
       const resultado = await importarProductos(archivo, token);
       setResultadoImportacion(resultado);
@@ -335,11 +358,17 @@ export function Inventario() {
       const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
       await cargarProductos(pagina, categoriaId);
     } catch (err) {
+      const errores = err instanceof ApiError ? obtenerErroresImportacion(err.data) : [];
       const mensaje = err instanceof ApiError ? err.message : 'No se pudo importar el archivo.';
       setResultadoImportacion(null);
-      setErrorImportacion(mensaje);
+      setErroresImportacion(errores);
+      setErrorImportacion(errores.length > 0 && mensaje === 'Ocurrió un error inesperado.' ? null : mensaje);
       setDialogImportacionAbierto(true);
-      toast.error(mensaje);
+      if (errores.length > 0) {
+        toast.warning(`${errores.length} fila(s) con errores de importación`);
+      } else {
+        toast.error(mensaje);
+      }
     } finally {
       setImportando(false);
     }
@@ -751,12 +780,13 @@ export function Inventario() {
             <DialogTitle>Resultado de la importación</DialogTitle>
           </DialogHeader>
 
-          {errorImportacion ? (
+          {errorImportacion && (
             <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
               {errorImportacion}
             </div>
-          ) : (
-            resultadoImportacion && (
+          )}
+
+          {resultadoImportacion && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-md border border-border p-3">
@@ -769,22 +799,33 @@ export function Inventario() {
                   </div>
                 </div>
 
-                {resultadoImportacion.errores.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-error-text">
-                      {resultadoImportacion.errores.length} fila(s) con errores
-                    </p>
-                    <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2 text-sm">
-                      {resultadoImportacion.errores.map((error) => (
-                        <li key={error.fila} className="text-navy">
-                          Fila {error.fila}: <span className="text-error-text">{error.mensaje}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </div>
-            )
+          )}
+
+          {(resultadoImportacion?.errores ?? erroresImportacion).length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-error-text">
+                {(resultadoImportacion?.errores ?? erroresImportacion).length} fila(s) con errores
+              </p>
+              <div className="max-h-48 overflow-y-auto rounded-md border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fila</TableHead>
+                      <TableHead>Mensaje</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(resultadoImportacion?.errores ?? erroresImportacion).map((error) => (
+                      <TableRow key={`${error.fila}-${error.mensaje}`}>
+                        <TableCell className="text-navy">{error.fila}</TableCell>
+                        <TableCell className="text-error-text">{error.mensaje}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           )}
 
           <DialogFooter>

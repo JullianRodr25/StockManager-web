@@ -53,6 +53,10 @@ export interface ImportarProductoError {
   mensaje: string;
 }
 
+export interface ImportarProductosErrorResponse {
+  errores: ImportarProductoError[];
+}
+
 export interface ImportarProductosResponse {
   totalFilas: number;
   creados: number;

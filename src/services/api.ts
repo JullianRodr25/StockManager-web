@@ -6,11 +6,13 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://localhost:7009';
 
 export class ApiError extends Error {
   status: number;
+  data?: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -18,6 +20,31 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string | null;
+}
+
+function obtenerMensajeError(data: unknown, mensajePredeterminado: string): string {
+  if (!data || typeof data !== 'object') return mensajePredeterminado;
+
+  if ('message' in data && typeof data.message === 'string') {
+    return data.message;
+  }
+
+  if ('errors' in data && typeof data.errors === 'object' && data.errors !== null) {
+    const mensajes = Object.values(data.errors).flatMap((errores) =>
+      Array.isArray(errores) ? errores.filter((error): error is string => typeof error === 'string') : []
+    );
+    if (mensajes.length > 0) return mensajes[0];
+  }
+
+  if ('detail' in data && typeof data.detail === 'string' && data.detail) {
+    return data.detail;
+  }
+
+  if ('title' in data && typeof data.title === 'string' && data.title) {
+    return data.title;
+  }
+
+  return mensajePredeterminado;
 }
 
 export async function apiRequest<TResponse>(
@@ -47,14 +74,15 @@ export async function apiRequest<TResponse>(
     // El backend devuelve { message: "..." } en errores 400/401,
     // según lo definido en AuthController.
     let message = 'Ocurrió un error inesperado.';
+    let data: unknown;
     try {
-      const errorData = await response.json();
-      message = errorData.message ?? message;
+      data = await response.json();
+      message = obtenerMensajeError(data, message);
     } catch {
       // La respuesta no tenía JSON (ej. error 500 sin body), se
       // usa el mensaje genérico.
     }
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response.status, data);
   }
 
   // Algunos endpoints (ej. futuros DELETE) pueden no devolver body.

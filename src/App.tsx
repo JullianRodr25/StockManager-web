@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Inventario } from './pages/Inventario';
 import { EtiquetasPendientes } from './pages/EtiquetasPendientes';
 import { Configuracion } from './pages/Configuracion';
+import { Ventas } from './pages/Ventas';
 import { PaginaProximamente } from './pages/PaginaProximamente';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -36,7 +37,7 @@ function App() {
                   </RutaProtegida>
                 }
               />
-              <Route path="/ventas" element={<PaginaProximamente titulo="Ventas" />} />
+              <Route path="/ventas" element={<Ventas />} />
               <Route path="/pedidos" element={<PaginaProximamente titulo="Pedidos" />} />
               <Route path="/clientes" element={<PaginaProximamente titulo="Clientes" />} />
               <Route path="/proveedores" element={<PaginaProximamente titulo="Proveedores" />} />
