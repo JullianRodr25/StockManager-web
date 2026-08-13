@@ -71,3 +71,26 @@
     width: 100%;
   }
 }
+
+/* Impresión de factura: al imprimir, solo se muestra el contenido de
+   la factura mostrado en src/pages/HistorialVentas.tsx; el resto del
+   layout (sidebar, topbar, dialog, controles) se oculta. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #factura-para-imprimir,
+  #factura-para-imprimir * {
+    visibility: visible;
+  }
+
+  #factura-para-imprimir {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

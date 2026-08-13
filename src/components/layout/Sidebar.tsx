@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useLogo } from '@/context/LogoContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +41,15 @@ const modulos: ModuloNav[] = [
       { label: 'Etiquetas pendientes', to: '/inventario/etiquetas', soloAdmin: true },
     ],
   },
-  { label: 'Ventas', to: '/ventas', icon: ShoppingCart },
+  {
+    label: 'Ventas',
+    to: '/ventas',
+    icon: ShoppingCart,
+    children: [
+      { label: 'Nueva venta', to: '/ventas' },
+      { label: 'Historial de ventas', to: '/ventas/historial' },
+    ],
+  },
   { label: 'Pedidos', to: '/pedidos', icon: Truck },
   { label: 'Clientes', to: '/clientes', icon: Users },
   { label: 'Proveedores', to: '/proveedores', icon: Building2 },
@@ -51,14 +58,11 @@ const modulos: ModuloNav[] = [
 ];
 
 function Marca({ compact = false }: { compact?: boolean }) {
-  const { logoUrl } = useLogo();
   return (
     <div className={cn('flex items-center gap-3 px-6 py-6', compact && 'px-4 py-5')}>
-      <img
-        src={logoUrl}
-        alt="Logo de Ferretería Gold"
-        className="h-9 w-9 shrink-0 rounded-full border-2 border-gold object-cover"
-      />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold bg-navy font-heading text-xs font-bold tracking-wide text-gold">
+        FG
+      </div>
       <span className="font-heading text-sm font-semibold tracking-wide text-background">
         Ferretería Gold
       </span>
@@ -77,6 +81,7 @@ function SidebarNav() {
   const { usuario } = useAuth();
   const [expandido, setExpandido] = useState<Record<string, boolean>>({
     '/inventario': location.pathname.startsWith('/inventario'),
+    '/ventas': location.pathname.startsWith('/ventas'),
   });
 
   return (

@@ -7,7 +7,8 @@ import { ApiError } from '@/services/api';
 import { buscarProductoPorCodigoBarras, obtenerProductos } from '@/services/inventarioService';
 import { registrarVenta } from '@/services/ventaService';
 import type { Producto } from '@/types/inventario';
-import type { MetodoPago, RegistrarVentaRequest } from '@/types/ventas';
+import type { MetodoPago, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
+import { DetalleFacturaDialog } from '@/components/DetalleFacturaDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -51,6 +52,7 @@ type ModoComprador = 'registrado' | 'sinRegistro';
 interface LineaCarrito {
   productoId: number;
   cantidad: string;
+  stockActual: number;
 }
 
 const estadoInicialComprador = {
@@ -89,6 +91,9 @@ export function Ventas() {
   const [conflictoStock, setConflictoStock] = useState<string | null>(null);
   const [registrando, setRegistrando] = useState(false);
   const registroEnCursoRef = useRef(false);
+
+  const [ventaRecienCreada, setVentaRecienCreada] = useState<VentaResponse | null>(null);
+  const [facturaAbierta, setFacturaAbierta] = useState(false);
 
   const cargarProductos = useCallback(async () => {
     setCargandoProductos(true);
@@ -138,7 +143,21 @@ export function Ventas() {
   const total = carritoConDatos.reduce((acumulado, linea) => acumulado + linea.subtotal, 0);
   const carritoVacio = carrito.length === 0;
 
+  // Validación de UX: evita agregar o escribir más unidades de las
+  // que el producto tiene en stock. Esto NO reemplaza la validación
+  // real del backend, que sigue siendo la fuente de verdad: por
+  // concurrencia, el stock puede cambiar entre que se arma el carrito
+  // y se confirma la venta, así que el manejo del error 409 en
+  // handleConfirmarVenta debe seguir existiendo.
   function agregarProductoAlCarrito(producto: Producto) {
+    const existente = carrito.find((linea) => linea.productoId === producto.id);
+    const cantidadActual = existente ? Number(existente.cantidad) || 0 : 0;
+
+    if (cantidadActual + 1 > producto.stockActual) {
+      toast.error(`Solo hay ${producto.stockActual} unidades disponibles de "${producto.nombre}"`);
+      return;
+    }
+
     setCarrito((actual) => {
       const existente = actual.find((linea) => linea.productoId === producto.id);
       if (existente) {
@@ -148,11 +167,23 @@ export function Ventas() {
             : linea
         );
       }
-      return [...actual, { productoId: producto.id, cantidad: '1' }];
+      return [...actual, { productoId: producto.id, cantidad: '1', stockActual: producto.stockActual }];
     });
   }
 
   function actualizarCantidad(productoId: number, valor: string) {
+    const linea = carrito.find((l) => l.productoId === productoId);
+    const cantidadIngresada = Number(valor);
+
+    if (linea && Number.isFinite(cantidadIngresada) && cantidadIngresada > linea.stockActual) {
+      const producto = productosPorId.get(productoId);
+      toast.error(`Solo hay ${linea.stockActual} unidades disponibles de "${producto?.nombre ?? ''}"`);
+      setCarrito((actual) =>
+        actual.map((l) => (l.productoId === productoId ? { ...l, cantidad: String(linea.stockActual) } : l))
+      );
+      return;
+    }
+
     setCarrito((actual) =>
       actual.map((linea) => (linea.productoId === productoId ? { ...linea, cantidad: valor } : linea))
     );
@@ -278,6 +309,8 @@ export function Ventas() {
       });
       reiniciarVenta();
       await cargarProductos();
+      setVentaRecienCreada(venta);
+      setFacturaAbierta(true);
     } catch (err) {
       const mensaje = err instanceof ApiError ? err.message : 'No se pudo registrar la venta.';
       if (err instanceof ApiError && err.status === 409) {
@@ -397,6 +430,7 @@ export function Ventas() {
                               aria-label={`Cantidad para ${linea.producto?.nombre ?? 'el producto'}`}
                               type="number"
                               min="1"
+                              max={linea.stockActual}
                               step="1"
                               value={linea.cantidad}
                               onChange={(e) => actualizarCantidad(linea.productoId, e.target.value)}
@@ -569,6 +603,8 @@ export function Ventas() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <DetalleFacturaDialog venta={ventaRecienCreada} open={facturaAbierta} onOpenChange={setFacturaAbierta} />
     </div>
   );
 }

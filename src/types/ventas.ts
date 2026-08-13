@@ -38,5 +38,31 @@ export interface VentaResponse {
   fecha: string;
   estado: string;
   total: number;
+  numeroFactura: string;
   detalles: DetalleVentaResponse[];
+}
+
+export interface VentaResumenResponse {
+  id: number;
+  nombreComprador: string | null;
+  clienteId: number | null;
+  fecha: string;
+  estado: string;
+  total: number;
+  metodoPago: string;
+  numeroFactura: string;
+}
+
+export interface VentasPaginadasResponse {
+  data: VentaResumenResponse[];
+  pagina: number;
+  tamanoPagina: number;
+  total: number;
+  totalPaginas: number;
+}
+
+export interface FiltrosVentas {
+  desde?: string;
+  hasta?: string;
+  estado?: string;
 }
