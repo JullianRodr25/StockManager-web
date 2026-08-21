@@ -47,6 +47,7 @@ const modulos: ModuloNav[] = [
     icon: ShoppingCart,
     children: [
       { label: 'Nueva venta', to: '/ventas' },
+      { label: 'Cuentas Abiertas', to: '/ventas/fiado' },
       { label: 'Historial de ventas', to: '/ventas/historial' },
     ],
   },

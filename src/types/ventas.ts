@@ -18,6 +18,7 @@ export interface RegistrarVentaRequest {
 }
 
 export interface DetalleVentaResponse {
+  id: number;
   productoId: number;
   productoNombre: string;
   cantidad: number;
@@ -65,4 +66,22 @@ export interface FiltrosVentas {
   desde?: string;
   hasta?: string;
   estado?: string;
+}
+
+export interface RegistrarAbonoRequest {
+  monto: number;
+  metodoPago: MetodoPago;
+}
+
+export interface AbonoResponse {
+  id: number;
+  ventaId: number;
+  monto: number;
+  metodoPago: string;
+  fecha: string;
+  empleadoId: number;
+}
+
+export interface EditarCantidadLineaRequest {
+  cantidad: number;
 }

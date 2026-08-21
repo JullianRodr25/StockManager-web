@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
-import { Barcode, Loader2, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { Loader2, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
-import { buscarProductoPorCodigoBarras, obtenerProductos } from '@/services/inventarioService';
+import { obtenerProductos } from '@/services/inventarioService';
 import { registrarVenta } from '@/services/ventaService';
 import type { Producto } from '@/types/inventario';
 import type { MetodoPago, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
+import { BuscadorProductos } from '@/components/BuscadorProductos';
 import { DetalleFacturaDialog } from '@/components/DetalleFacturaDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,8 +33,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 
 const TAMANO_PAGINA_PRODUCTOS = 500;
-const MAX_RESULTADOS_BUSQUEDA = 8;
-const MAX_RESULTADOS_SIN_FILTRO = 20;
 
 const formatoMoneda = new Intl.NumberFormat('es-CO', {
   style: 'currency',
@@ -70,12 +69,6 @@ export function Ventas() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
   const [errorProductos, setErrorProductos] = useState<string | null>(null);
-
-  const [terminoBusqueda, setTerminoBusqueda] = useState('');
-  const [buscandoCodigo, setBuscandoCodigo] = useState(false);
-  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
-  const [mostrarDropdown, setMostrarDropdown] = useState(false);
-  const cierreDropdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
 
@@ -116,16 +109,6 @@ export function Ventas() {
     () => new Map(productos.map((producto) => [producto.id, producto])),
     [productos]
   );
-
-  const resultadosBusqueda = useMemo(() => {
-    const termino = terminoBusqueda.trim().toLowerCase();
-    const coincidencias = termino
-      ? productos.filter((producto) => producto.nombre.toLowerCase().includes(termino))
-      : productos;
-    return [...coincidencias]
-      .sort((a, b) => a.nombre.localeCompare(b.nombre))
-      .slice(0, termino ? MAX_RESULTADOS_BUSQUEDA : MAX_RESULTADOS_SIN_FILTRO);
-  }, [productos, terminoBusqueda]);
 
   const carritoConDatos = useMemo(
     () =>
@@ -191,48 +174,6 @@ export function Ventas() {
 
   function eliminarLinea(productoId: number) {
     setCarrito((actual) => actual.filter((linea) => linea.productoId !== productoId));
-  }
-
-  async function handleEnterBusqueda(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== 'Enter') return;
-
-    const texto = terminoBusqueda.trim();
-    if (!texto) return;
-
-    setBuscandoCodigo(true);
-    setErrorBusqueda(null);
-    try {
-      const producto = await buscarProductoPorCodigoBarras(texto, token);
-      agregarProductoAlCarrito(producto);
-      setTerminoBusqueda('');
-    } catch (err) {
-      setErrorBusqueda(
-        err instanceof ApiError ? 'No se encontró ningún producto con ese código.' : 'No se pudo realizar la búsqueda.'
-      );
-    } finally {
-      setBuscandoCodigo(false);
-    }
-  }
-
-  function handleSeleccionarResultado(producto: Producto) {
-    agregarProductoAlCarrito(producto);
-    setTerminoBusqueda('');
-    setErrorBusqueda(null);
-    setMostrarDropdown(false);
-  }
-
-  function handleEnfocarBusqueda() {
-    if (cierreDropdownRef.current) {
-      clearTimeout(cierreDropdownRef.current);
-      cierreDropdownRef.current = null;
-    }
-    setMostrarDropdown(true);
-  }
-
-  function handleDesenfocarBusqueda() {
-    // Retraso para que el click en un resultado del dropdown alcance a
-    // registrarse antes de que este se oculte por el blur del input.
-    cierreDropdownRef.current = setTimeout(() => setMostrarDropdown(false), 150);
   }
 
   function abrirDialogFinalizar() {
@@ -334,65 +275,13 @@ export function Ventas() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-navy">Buscar producto</CardTitle>
-            <CardDescription>Escanea el código de barras o escribe el nombre.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="relative">
-              <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-              <Input
-                value={terminoBusqueda}
-                onChange={(e) => {
-                  setTerminoBusqueda(e.target.value);
-                  setErrorBusqueda(null);
-                }}
-                onKeyDown={handleEnterBusqueda}
-                onFocus={handleEnfocarBusqueda}
-                onBlur={handleDesenfocarBusqueda}
-                placeholder="Escanea el código o escribe el nombre del producto..."
-                disabled={buscandoCodigo || cargandoProductos}
-                className="pl-9"
-                autoFocus
-              />
-            </div>
-
-            {errorBusqueda && <p className="text-sm text-error-text">{errorBusqueda}</p>}
-
-            {mostrarDropdown && (
-              <div className="max-h-72 overflow-y-auto rounded-md border border-border">
-                {resultadosBusqueda.length === 0 ? (
-                  <p className="px-3 py-2 text-sm text-text-muted">
-                    {terminoBusqueda.trim()
-                      ? 'Sin resultados por nombre. Presiona Enter para buscar por código.'
-                      : 'No hay productos disponibles.'}
-                  </p>
-                ) : (
-                  resultadosBusqueda.map((producto) => (
-                    <button
-                      key={producto.id}
-                      type="button"
-                      onClick={() => handleSeleccionarResultado(producto)}
-                      className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-background"
-                    >
-                      <span className="text-navy">{producto.nombre}</span>
-                      <span className="whitespace-nowrap text-text-muted">
-                        {formatoMoneda.format(producto.precio)} · {producto.stockActual} disp.
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-
-            {errorProductos && (
-              <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                {errorProductos}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <BuscadorProductos
+          productos={productos}
+          cargandoProductos={cargandoProductos}
+          errorProductos={errorProductos}
+          token={token}
+          onSeleccionarProducto={agregarProductoAlCarrito}
+        />
 
         <Card className="border-border">
           <CardHeader>
