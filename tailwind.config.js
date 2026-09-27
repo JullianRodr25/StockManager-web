@@ -2,21 +2,35 @@ import tailwindcssAnimate from 'tailwindcss-animate';
 
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        navy: '#16233B',
+        // Adaptativos: cambian de valor entre modo claro y oscuro (ver
+        // variables --navy/--background/etc. en index.css). Se usan para
+        // texto y superficies que sí deben invertirse con el tema.
+        navy: 'hsl(var(--navy) / <alpha-value>)',
+        background: 'hsl(var(--background) / <alpha-value>)',
+        border: 'hsl(var(--border) / <alpha-value>)',
+        'text-muted': 'hsl(var(--text-muted) / <alpha-value>)',
+        'error-text': 'hsl(var(--error-text) / <alpha-value>)',
+        'error-bg': 'hsl(var(--error-bg) / <alpha-value>)',
+
+        // Fijos: NO cambian entre modo claro/oscuro. "ink" y "cream" son la
+        // pareja fondo-oscuro/texto-claro que usan las superficies siempre
+        // oscuras de la marca (sidebar, avatares, badges, overlays), donde
+        // antes se reutilizaban "navy"/"background" — pero esos dos ahora
+        // son adaptativos y ya no sirven para ese propósito.
+        ink: '#16233B',
+        cream: '#FAF9F6',
         gold: {
-          DEFAULT: '#D9A441',
-          hover: '#C6902E',
+          DEFAULT: 'hsl(var(--gold) / <alpha-value>)',
+          hover: 'hsl(var(--gold-hover) / <alpha-value>)',
         },
-        green: '#1F5C46',
-        background: '#FAF9F6',
-        border: '#E5E1D8',
-        'text-muted': '#6B7280',
-        'error-text': '#B3413A',
-        'error-bg': '#FBECEB',
+        green: 'hsl(var(--green) / <alpha-value>)',
+
+        // Tokens shadcn/ui, ya usados por los componentes base.
         foreground: 'hsl(var(--foreground) / <alpha-value>)',
         card: 'hsl(var(--card) / <alpha-value>)',
         'card-foreground': 'hsl(var(--card-foreground) / <alpha-value>)',

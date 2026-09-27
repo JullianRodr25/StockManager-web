@@ -1,6 +1,7 @@
-import { Menu, Bell } from 'lucide-react';
+import { Menu, Bell, Moon, Sun } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -41,11 +42,12 @@ interface TopbarProps {
 
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { usuario, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const titulo = TITULOS_POR_RUTA[location.pathname] ?? 'StockManager';
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-white px-4 sm:px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5 text-navy" />
@@ -55,6 +57,11 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          {theme === 'dark' ? <Sun className="h-5 w-5 text-navy" /> : <Moon className="h-5 w-5 text-navy" />}
+          <span className="sr-only">Cambiar a modo {theme === 'dark' ? 'claro' : 'oscuro'}</span>
+        </Button>
+
         <div className="relative">
           <Button variant="ghost" size="icon">
             <Bell className="h-5 w-5 text-navy" />

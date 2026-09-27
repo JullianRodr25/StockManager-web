@@ -1,14 +1,18 @@
 import type { CSSProperties } from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { useTheme } from "@/context/ThemeContext"
 
-// La app no tiene modo oscuro/claro, por lo que el Toaster se fija
-// siempre en tema "light" y usa directamente la paleta Ferretería Gold
-// en lugar de los tokens hsl(var(--...)) genéricos de shadcn.
+// Se usan los tokens hsl(var(--...)) de shadcn (ya adaptados a modo
+// claro/oscuro en index.css) en vez de hex fijos, y se pasa el tema
+// activo para que los colores por defecto de éxito/error/etc. de Sonner
+// también se ajusten.
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme } = useTheme()
+
   return (
     <Sonner
-      theme="light"
+      theme={theme}
       className="toaster group"
       icons={{
         success: (
@@ -29,9 +33,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "#FFFFFF",
-          "--normal-text": "#16233B",
-          "--normal-border": "#E5E1D8",
+          "--normal-bg": "hsl(var(--card))",
+          "--normal-text": "hsl(var(--navy))",
+          "--normal-border": "hsl(var(--border))",
           "--border-radius": "0.75rem",
         } as CSSProperties
       }

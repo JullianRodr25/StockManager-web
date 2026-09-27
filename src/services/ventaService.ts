@@ -105,3 +105,10 @@ export async function quitarLinea(
     token,
   });
 }
+
+export async function cancelarCuenta(ventaId: number, token: string | null): Promise<VentaResponse> {
+  return apiRequest<VentaResponse>(`/api/ventas/${ventaId}`, {
+    method: 'DELETE',
+    token,
+  });
+}

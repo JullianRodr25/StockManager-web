@@ -61,10 +61,10 @@ const modulos: ModuloNav[] = [
 function Marca({ compact = false }: { compact?: boolean }) {
   return (
     <div className={cn('flex items-center gap-3 px-6 py-6', compact && 'px-4 py-5')}>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold bg-navy font-heading text-xs font-bold tracking-wide text-gold">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold bg-ink font-heading text-xs font-bold tracking-wide text-gold">
         FG
       </div>
-      <span className="font-heading text-sm font-semibold tracking-wide text-background">
+      <span className="font-heading text-sm font-semibold tracking-wide text-cream">
         Ferretería Gold
       </span>
     </div>
@@ -74,7 +74,7 @@ function Marca({ compact = false }: { compact?: boolean }) {
 const navLinkClasses = (isActive: boolean) =>
   cn(
     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors motion-reduce:transition-none',
-    isActive ? 'bg-gold/10 text-gold' : 'text-slate-300 hover:bg-white/5 hover:text-background'
+    isActive ? 'bg-gold/10 text-gold' : 'text-slate-300 hover:bg-white/5 hover:text-cream'
   );
 
 function SidebarNav() {
@@ -130,7 +130,7 @@ function SidebarNav() {
                     className={({ isActive }) =>
                       cn(
                         'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors motion-reduce:transition-none',
-                        isActive ? 'text-gold' : 'text-slate-400 hover:text-background'
+                        isActive ? 'text-gold' : 'text-slate-400 hover:text-cream'
                       )
                     }
                   >
@@ -156,7 +156,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden w-60 shrink-0 flex-col bg-navy md:flex">
+      <aside className="hidden w-60 shrink-0 flex-col bg-ink md:flex">
         <Marca />
         <SidebarNav />
       </aside>
