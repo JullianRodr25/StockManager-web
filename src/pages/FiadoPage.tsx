@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowLeft, Loader2, Search, Trash2, UserCheck, Users } from 'lucide-react';
+import { ArrowLeft, Ban, Loader2, Search, Trash2, UserCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -9,6 +9,7 @@ import { buscarClientes } from '@/services/clienteService';
 import {
   abrirFiado,
   agregarLineaFiado,
+  cancelarCuenta,
   editarCantidadLinea,
   obtenerAbonos,
   obtenerVentaPorId,
@@ -99,6 +100,9 @@ export function FiadoPage() {
 
   const [ventaCerrada, setVentaCerrada] = useState<VentaResponse | null>(null);
   const [facturaAbierta, setFacturaAbierta] = useState(false);
+
+  const [confirmandoCancelarCuenta, setConfirmandoCancelarCuenta] = useState(false);
+  const [cancelandoCuenta, setCancelandoCuenta] = useState(false);
 
   const cargarProductos = useCallback(async () => {
     setCargandoProductos(true);
@@ -361,6 +365,23 @@ export function FiadoPage() {
     }
   }
 
+  async function handleConfirmarCancelarCuenta() {
+    if (!cuentaAbierta) return;
+
+    setCancelandoCuenta(true);
+    try {
+      await cancelarCuenta(cuentaAbierta.id, token);
+      toast.success('Cuenta cancelada', { description: nombreCuenta(cuentaAbierta) });
+      reiniciarCuentaAbierta();
+    } catch (err) {
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudo cancelar la cuenta.';
+      toast.error(mensaje);
+    } finally {
+      setCancelandoCuenta(false);
+      setConfirmandoCancelarCuenta(false);
+    }
+  }
+
   const totalAbonado = abonos.reduce((acumulado, abono) => acumulado + abono.monto, 0);
   const saldoPendiente = cuentaAbierta ? Math.max(cuentaAbierta.total - totalAbonado, 0) : 0;
 
@@ -571,10 +592,28 @@ export function FiadoPage() {
                     <p className="text-xs text-text-muted">Cuenta #{cuentaAbierta.id} · Pendiente</p>
                   </div>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={reiniciarCuentaAbierta}>
-                  <ArrowLeft className="h-4 w-4" />
-                  Volver a cuentas abiertas
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-error-text text-error-text hover:bg-error-bg"
+                    onClick={() => setConfirmandoCancelarCuenta(true)}
+                    disabled={cargandoAbonos || abonos.length > 0}
+                    title={
+                      abonos.length > 0
+                        ? 'No se puede cancelar una cuenta que ya tiene abonos registrados.'
+                        : undefined
+                    }
+                  >
+                    <Ban className="h-4 w-4" />
+                    Cancelar cuenta
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={reiniciarCuentaAbierta}>
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver a cuentas abiertas
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -781,6 +820,27 @@ export function FiadoPage() {
             <AlertDialogCancel disabled={eliminandoLinea}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmarEliminarLinea} disabled={eliminandoLinea}>
               {eliminandoLinea ? 'Quitando...' : 'Quitar producto'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmandoCancelarCuenta}
+        onOpenChange={(open) => !cancelandoCuenta && setConfirmandoCancelarCuenta(open)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cancelar esta cuenta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se repondrá el stock de todos los productos agregados y la cuenta quedará cancelada. Esta acción no
+              se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelandoCuenta}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmarCancelarCuenta} disabled={cancelandoCuenta}>
+              {cancelandoCuenta ? 'Cancelando...' : 'Sí, cancelar cuenta'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
