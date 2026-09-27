@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LogoProvider } from './context/LogoContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { RutaProtegida } from './components/RutaProtegida';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
@@ -16,42 +17,44 @@ import { Toaster } from '@/components/ui/sonner';
 
 function App() {
   return (
-    <BrowserRouter>
-      <LogoProvider>
-        <AuthProvider>
-          <Toaster position="top-right" richColors />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              element={
-                <RutaProtegida>
-                  <AppLayout />
-                </RutaProtegida>
-              }
-            >
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/inventario" element={<Inventario />} />
+    <ThemeProvider>
+      <BrowserRouter>
+        <LogoProvider>
+          <AuthProvider>
+            <Toaster position="top-right" richColors />
+            <Routes>
+              <Route path="/login" element={<Login />} />
               <Route
-                path="/inventario/etiquetas"
                 element={
-                  <RutaProtegida rolesPermitidos={['Admin']}>
-                    <EtiquetasPendientes />
+                  <RutaProtegida>
+                    <AppLayout />
                   </RutaProtegida>
                 }
-              />
-              <Route path="/ventas" element={<Ventas />} />
-              <Route path="/ventas/fiado" element={<FiadoPage />} />
-              <Route path="/ventas/historial" element={<HistorialVentas />} />
-              <Route path="/pedidos" element={<PaginaProximamente titulo="Pedidos" />} />
-              <Route path="/clientes" element={<PaginaProximamente titulo="Clientes" />} />
-              <Route path="/proveedores" element={<PaginaProximamente titulo="Proveedores" />} />
-              <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
-              <Route path="/configuracion" element={<Configuracion />} />
-            </Route>
-          </Routes>
-        </AuthProvider>
-      </LogoProvider>
-    </BrowserRouter>
+              >
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/inventario" element={<Inventario />} />
+                <Route
+                  path="/inventario/etiquetas"
+                  element={
+                    <RutaProtegida rolesPermitidos={['Admin']}>
+                      <EtiquetasPendientes />
+                    </RutaProtegida>
+                  }
+                />
+                <Route path="/ventas" element={<Ventas />} />
+                <Route path="/ventas/fiado" element={<FiadoPage />} />
+                <Route path="/ventas/historial" element={<HistorialVentas />} />
+                <Route path="/pedidos" element={<PaginaProximamente titulo="Pedidos" />} />
+                <Route path="/clientes" element={<PaginaProximamente titulo="Clientes" />} />
+                <Route path="/proveedores" element={<PaginaProximamente titulo="Proveedores" />} />
+                <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
+                <Route path="/configuracion" element={<Configuracion />} />
+              </Route>
+            </Routes>
+          </AuthProvider>
+        </LogoProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 

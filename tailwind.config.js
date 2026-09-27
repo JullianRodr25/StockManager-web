@@ -2,21 +2,29 @@ import tailwindcssAnimate from 'tailwindcss-animate';
 
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        navy: '#16233B',
+        // Colores "de marca" que se invierten entre modo claro/oscuro,
+        // resueltos a variables CSS definidas en index.css (:root / .dark).
+        navy: 'hsl(var(--foreground) / <alpha-value>)',
         gold: {
-          DEFAULT: '#D9A441',
-          hover: '#C6902E',
+          DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
+          hover: 'hsl(var(--primary-hover) / <alpha-value>)',
         },
-        green: '#1F5C46',
-        background: '#FAF9F6',
-        border: '#E5E1D8',
-        'text-muted': '#6B7280',
-        'error-text': '#B3413A',
-        'error-bg': '#FBECEB',
+        green: 'hsl(var(--accent) / <alpha-value>)',
+        background: 'hsl(var(--background) / <alpha-value>)',
+        border: 'hsl(var(--border) / <alpha-value>)',
+        'text-muted': 'hsl(var(--muted-foreground) / <alpha-value>)',
+        'error-text': 'hsl(var(--error-text) / <alpha-value>)',
+        'error-bg': 'hsl(var(--error-bg) / <alpha-value>)',
+        // Navy FIJO (no se invierte): para superficies de marca que deben
+        // seguir oscuras en ambos temas (sidebar, avatar, logo, overlays de
+        // modales) y para texto sobre fondos dorados (siempre necesita
+        // contraste oscuro, sin importar el tema activo).
+        'brand-navy': '#16233B',
         foreground: 'hsl(var(--foreground) / <alpha-value>)',
         card: 'hsl(var(--card) / <alpha-value>)',
         'card-foreground': 'hsl(var(--card-foreground) / <alpha-value>)',
