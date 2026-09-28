@@ -12,6 +12,7 @@ import { Configuracion } from './pages/Configuracion';
 import { Ventas } from './pages/Ventas';
 import { FiadoPage } from './pages/FiadoPage';
 import { HistorialVentas } from './pages/HistorialVentas';
+import { Pedidos } from './pages/Pedidos';
 import { PaginaProximamente } from './pages/PaginaProximamente';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -44,7 +45,7 @@ function App() {
                 <Route path="/ventas" element={<Ventas />} />
                 <Route path="/ventas/fiado" element={<FiadoPage />} />
                 <Route path="/ventas/historial" element={<HistorialVentas />} />
-                <Route path="/pedidos" element={<PaginaProximamente titulo="Pedidos" />} />
+                <Route path="/pedidos" element={<Pedidos />} />
                 <Route path="/clientes" element={<PaginaProximamente titulo="Clientes" />} />
                 <Route path="/proveedores" element={<PaginaProximamente titulo="Proveedores" />} />
                 <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
