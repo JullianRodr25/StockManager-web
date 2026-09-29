@@ -66,7 +66,7 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
             <div id="factura-para-imprimir" className="space-y-5">
               <div className="flex items-start justify-between border-b border-border pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ink font-heading text-sm font-bold tracking-wide text-gold">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brand-navy font-heading text-sm font-bold tracking-wide text-gold">
                     FG
                   </div>
                   <div>

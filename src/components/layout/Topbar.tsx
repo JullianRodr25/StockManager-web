@@ -57,9 +57,13 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={toggleTheme}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        >
           {theme === 'dark' ? <Sun className="h-5 w-5 text-navy" /> : <Moon className="h-5 w-5 text-navy" />}
-          <span className="sr-only">Cambiar a modo {theme === 'dark' ? 'claro' : 'oscuro'}</span>
         </Button>
 
         <div className="relative">

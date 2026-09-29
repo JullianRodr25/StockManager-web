@@ -17,7 +17,7 @@ const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-ink/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none motion-reduce:transition-none',
+      'fixed inset-0 z-50 bg-brand-navy/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none motion-reduce:transition-none',
       className
     )}
     {...props}
@@ -26,12 +26,12 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  'fixed z-50 gap-4 bg-ink p-0 shadow-lg transition ease-in-out motion-reduce:transition-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-200 data-[state=open]:duration-300 motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none',
+  'fixed z-50 gap-4 bg-brand-navy p-0 shadow-lg transition ease-in-out motion-reduce:transition-none data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-200 data-[state=open]:duration-300 motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none',
   {
     variants: {
       side: {
-        left: 'inset-y-0 left-0 h-full w-72 border-r border-ink data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
-        right: 'inset-y-0 right-0 h-full w-72 border-l border-ink data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+        left: 'inset-y-0 left-0 h-full w-72 border-r border-brand-navy data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
+        right: 'inset-y-0 right-0 h-full w-72 border-l border-brand-navy data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
       },
     },
     defaultVariants: {
@@ -52,7 +52,7 @@ const SheetContent = React.forwardRef<
     <SheetOverlay />
     <DialogPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-cream/70 transition-colors motion-reduce:transition-none hover:text-cream focus:outline-none focus-visible:ring-2 focus-visible:ring-gold">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-white/70 transition-colors motion-reduce:transition-none hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold">
         <X className="h-4 w-4" />
         <span className="sr-only">Cerrar</span>
       </DialogPrimitive.Close>
@@ -70,7 +70,7 @@ const SheetTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn('font-heading text-lg font-semibold text-cream', className)} {...props} />
+  <DialogPrimitive.Title ref={ref} className={cn('font-heading text-lg font-semibold text-white', className)} {...props} />
 ));
 SheetTitle.displayName = DialogPrimitive.Title.displayName;
 

@@ -7,30 +7,24 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Adaptativos: cambian de valor entre modo claro y oscuro (ver
-        // variables --navy/--background/etc. en index.css). Se usan para
-        // texto y superficies que sí deben invertirse con el tema.
-        navy: 'hsl(var(--navy) / <alpha-value>)',
+        // Colores "de marca" que se invierten entre modo claro/oscuro,
+        // resueltos a variables CSS definidas en index.css (:root / .dark).
+        navy: 'hsl(var(--foreground) / <alpha-value>)',
+        gold: {
+          DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
+          hover: 'hsl(var(--primary-hover) / <alpha-value>)',
+        },
+        green: 'hsl(var(--accent) / <alpha-value>)',
         background: 'hsl(var(--background) / <alpha-value>)',
         border: 'hsl(var(--border) / <alpha-value>)',
-        'text-muted': 'hsl(var(--text-muted) / <alpha-value>)',
+        'text-muted': 'hsl(var(--muted-foreground) / <alpha-value>)',
         'error-text': 'hsl(var(--error-text) / <alpha-value>)',
         'error-bg': 'hsl(var(--error-bg) / <alpha-value>)',
-
-        // Fijos: NO cambian entre modo claro/oscuro. "ink" y "cream" son la
-        // pareja fondo-oscuro/texto-claro que usan las superficies siempre
-        // oscuras de la marca (sidebar, avatares, badges, overlays), donde
-        // antes se reutilizaban "navy"/"background" — pero esos dos ahora
-        // son adaptativos y ya no sirven para ese propósito.
-        ink: '#16233B',
-        cream: '#FAF9F6',
-        gold: {
-          DEFAULT: 'hsl(var(--gold) / <alpha-value>)',
-          hover: 'hsl(var(--gold-hover) / <alpha-value>)',
-        },
-        green: 'hsl(var(--green) / <alpha-value>)',
-
-        // Tokens shadcn/ui, ya usados por los componentes base.
+        // Navy FIJO (no se invierte): para superficies de marca que deben
+        // seguir oscuras en ambos temas (sidebar, avatar, logo, overlays de
+        // modales) y para texto sobre fondos dorados (siempre necesita
+        // contraste oscuro, sin importar el tema activo).
+        'brand-navy': '#16233B',
         foreground: 'hsl(var(--foreground) / <alpha-value>)',
         card: 'hsl(var(--card) / <alpha-value>)',
         'card-foreground': 'hsl(var(--card-foreground) / <alpha-value>)',

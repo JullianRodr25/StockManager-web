@@ -36,7 +36,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -102,7 +101,7 @@ export function FiadoPage() {
   const [ventaCerrada, setVentaCerrada] = useState<VentaResponse | null>(null);
   const [facturaAbierta, setFacturaAbierta] = useState(false);
 
-  const [confirmandoCancelacion, setConfirmandoCancelacion] = useState(false);
+  const [confirmandoCancelarCuenta, setConfirmandoCancelarCuenta] = useState(false);
   const [cancelandoCuenta, setCancelandoCuenta] = useState(false);
 
   const cargarProductos = useCallback(async () => {
@@ -298,7 +297,6 @@ export function FiadoPage() {
     setMontoAbono('');
     setMetodoPagoAbono('');
     setErrorAbono(null);
-    setConfirmandoCancelacion(false);
   }
 
   function valorCantidadMostrado(linea: DetalleVentaResponse): string {
@@ -367,16 +365,48 @@ export function FiadoPage() {
     }
   }
 
+  async function handleConfirmarCancelarCuenta() {
+    if (!cuentaAbierta) return;
+
+    setCancelandoCuenta(true);
+    try {
+      await cancelarCuenta(cuentaAbierta.id, token);
+      toast.success('Cuenta cancelada', { description: nombreCuenta(cuentaAbierta) });
+      reiniciarCuentaAbierta();
+    } catch (err) {
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudo cancelar la cuenta.';
+      toast.error(mensaje);
+    } finally {
+      setCancelandoCuenta(false);
+      setConfirmandoCancelarCuenta(false);
+    }
+  }
+
   const totalAbonado = abonos.reduce((acumulado, abono) => acumulado + abono.monto, 0);
   const saldoPendiente = cuentaAbierta ? Math.max(cuentaAbierta.total - totalAbonado, 0) : 0;
-  const cuentaTieneAbonos = abonos.length > 0;
 
-  async function ejecutarAbono(monto: number, metodoPago: MetodoPago) {
-    if (!cuentaAbierta) return;
+  function handlePagarSaldoCompleto() {
+    setMontoAbono(saldoPendiente > 0 ? String(Math.round(saldoPendiente)) : '0');
+  }
+
+  async function handleRegistrarAbono(event: FormEvent) {
+    event.preventDefault();
+    if (!cuentaAbierta || registrandoAbono) return;
+
+    setErrorAbono(null);
+    const monto = Number(montoAbono);
+    if (!Number.isFinite(monto) || monto <= 0) {
+      setErrorAbono('Ingresa un monto válido.');
+      return;
+    }
+    if (!metodoPagoAbono) {
+      setErrorAbono('Selecciona un método de pago.');
+      return;
+    }
 
     setRegistrandoAbono(true);
     try {
-      const venta = await registrarAbono(cuentaAbierta.id, { monto, metodoPago }, token);
+      const venta = await registrarAbono(cuentaAbierta.id, { monto, metodoPago: metodoPagoAbono }, token);
 
       if (venta.estado.trim().toLowerCase() === 'pagada') {
         toast.success('Cuenta abierta pagada por completo', {
@@ -404,51 +434,6 @@ export function FiadoPage() {
       toast.error(mensaje);
     } finally {
       setRegistrandoAbono(false);
-    }
-  }
-
-  function handlePagarSaldoCompleto() {
-    if (registrandoAbono || saldoPendiente <= 0) return;
-    setErrorAbono(null);
-    if (!metodoPagoAbono) {
-      setErrorAbono('Selecciona un método de pago antes de pagar el saldo completo.');
-      return;
-    }
-    ejecutarAbono(saldoPendiente, metodoPagoAbono);
-  }
-
-  async function handleRegistrarAbono(event: FormEvent) {
-    event.preventDefault();
-    if (!cuentaAbierta || registrandoAbono) return;
-
-    setErrorAbono(null);
-    const monto = Number(montoAbono);
-    if (!Number.isFinite(monto) || monto <= 0) {
-      setErrorAbono('Ingresa un monto válido.');
-      return;
-    }
-    if (!metodoPagoAbono) {
-      setErrorAbono('Selecciona un método de pago.');
-      return;
-    }
-
-    await ejecutarAbono(monto, metodoPagoAbono);
-  }
-
-  async function handleConfirmarCancelarCuenta() {
-    if (!cuentaAbierta) return;
-
-    setCancelandoCuenta(true);
-    try {
-      await cancelarCuenta(cuentaAbierta.id, token);
-      toast.success('Cuenta cancelada');
-      reiniciarCuentaAbierta();
-    } catch (err) {
-      const mensaje = err instanceof ApiError ? err.message : 'No se pudo cancelar la cuenta.';
-      toast.error(mensaje);
-    } finally {
-      setCancelandoCuenta(false);
-      setConfirmandoCancelacion(false);
     }
   }
 
@@ -607,28 +592,27 @@ export function FiadoPage() {
                     <p className="text-xs text-text-muted">Cuenta #{cuentaAbierta.id} · Pendiente</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="border-error-text text-error-text hover:bg-error-bg hover:text-error-text"
-                      onClick={() => setConfirmandoCancelacion(true)}
-                      disabled={cuentaTieneAbonos || cancelandoCuenta}
-                      title={cuentaTieneAbonos ? 'No se puede cancelar: ya tiene abonos registrados' : undefined}
-                    >
-                      <Ban className="h-4 w-4" />
-                      Cancelar cuenta
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={reiniciarCuentaAbierta}>
-                      <ArrowLeft className="h-4 w-4" />
-                      Volver a cuentas abiertas
-                    </Button>
-                  </div>
-                  {cuentaTieneAbonos && (
-                    <p className="text-xs text-text-muted">No se puede cancelar: ya tiene abonos registrados</p>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-error-text text-error-text hover:bg-error-bg"
+                    onClick={() => setConfirmandoCancelarCuenta(true)}
+                    disabled={cargandoAbonos || abonos.length > 0}
+                    title={
+                      abonos.length > 0
+                        ? 'No se puede cancelar una cuenta que ya tiene abonos registrados.'
+                        : undefined
+                    }
+                  >
+                    <Ban className="h-4 w-4" />
+                    Cancelar cuenta
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={reiniciarCuentaAbierta}>
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver a cuentas abiertas
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -648,12 +632,12 @@ export function FiadoPage() {
 
             <Card className="border-border">
               <CardHeader>
-                <CardTitle className="text-navy">Cuenta fiada</CardTitle>
-                <CardDescription>Productos, total y abonos de esta cuenta.</CardDescription>
+                <CardTitle className="text-navy">Productos de la cuenta</CardTitle>
+                <CardDescription>Edita la cantidad o quita productos de esta cuenta.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 py-3">
+              <CardContent className="space-y-4">
                 {cuentaAbierta.detalles.length === 0 ? (
-                  <p className="py-6 text-center text-text-muted">Agrega productos para cargarlos a la cuenta.</p>
+                  <p className="py-10 text-center text-text-muted">Agrega productos para cargarlos a la cuenta.</p>
                 ) : (
                   <div className="overflow-x-auto rounded-md border border-border">
                     <Table>
@@ -668,7 +652,6 @@ export function FiadoPage() {
                       <TableBody>
                         {cuentaAbierta.detalles.map((linea) => {
                           const guardando = guardandoLineaId === linea.id;
-                          const esUltimaLinea = cuentaAbierta.detalles.length === 1;
                           return (
                             <TableRow key={linea.id}>
                               <TableCell className="text-navy">{linea.productoNombre}</TableCell>
@@ -700,8 +683,7 @@ export function FiadoPage() {
                                   size="icon"
                                   aria-label="Quitar producto"
                                   onClick={() => setLineaAEliminar(linea)}
-                                  disabled={guardando || esUltimaLinea}
-                                  title={esUltimaLinea ? 'Cancela la cuenta completa para vaciarla' : undefined}
+                                  disabled={guardando}
                                 >
                                   <Trash2 className="h-4 w-4 text-error-text" />
                                 </Button>
@@ -714,101 +696,114 @@ export function FiadoPage() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between border-t border-border pt-2">
+                <div className="flex items-center justify-between border-t border-border pt-3">
                   <span className="text-sm text-text-muted">Total acumulado</span>
                   <span className="text-lg font-semibold text-navy">{formatoMoneda.format(cuentaAbierta.total)}</span>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-muted">Saldo pendiente</span>
-                  <span className="font-semibold text-lg text-navy">{formatoMoneda.format(saldoPendiente)}</span>
-                </div>
-
-                <form onSubmit={handleRegistrarAbono} className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label htmlFor="montoAbono" className="text-xs">
-                        Monto
-                      </Label>
-                      <Input
-                        id="montoAbono"
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={montoAbono}
-                        onChange={(e) => setMontoAbono(e.target.value)}
-                        disabled={registrandoAbono}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="metodoPagoAbono" className="text-xs">
-                        Método de pago
-                      </Label>
-                      <Select value={metodoPagoAbono} onValueChange={(valor) => setMetodoPagoAbono(valor as MetodoPago)}>
-                        <SelectTrigger id="metodoPagoAbono" disabled={registrandoAbono}>
-                          <SelectValue placeholder="Selecciona" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {metodosPago.map((metodo) => (
-                            <SelectItem key={metodo.valor} value={metodo.valor}>
-                              {metodo.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {errorAbono && (
-                    <div className="rounded-md border border-red-200 bg-error-bg px-2 py-1.5 text-xs text-error-text" role="alert">
-                      {errorAbono}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePagarSaldoCompleto}
-                      disabled={registrandoAbono || saldoPendiente <= 0}
-                    >
-                      Pagar saldo completo
-                    </Button>
-                    <Button type="submit" variant="gold" size="sm" disabled={registrandoAbono}>
-                      {registrandoAbono && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
-                      Registrar abono
-                    </Button>
-                  </div>
-                </form>
-
-                <div className="space-y-1 border-t border-border pt-2">
-                  <p className="text-xs font-medium text-navy">Historial de abonos</p>
-                  {cargandoAbonos ? (
-                    <div className="flex items-center gap-2 py-2 text-xs text-text-muted">
-                      <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-                      Cargando abonos...
-                    </div>
-                  ) : abonos.length === 0 ? (
-                    <p className="py-1 text-xs text-text-muted">Todavía no se han registrado abonos.</p>
-                  ) : (
-                    <div className="divide-y divide-border">
-                      {abonos.map((abono) => (
-                        <div key={abono.id} className="flex items-center justify-between py-1.5 text-xs">
-                          <span className="text-text-muted">
-                            {formatoFecha(abono.fecha)} · {abono.metodoPago}
-                          </span>
-                          <span className="font-medium text-navy">{formatoMoneda.format(abono.monto)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
+
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-navy">Abonos</CardTitle>
+              <CardDescription>Registra pagos parciales o el pago total de esta cuenta.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                <span className="text-sm text-text-muted">Saldo pendiente</span>
+                <span className="text-lg font-semibold text-navy">{formatoMoneda.format(saldoPendiente)}</span>
+              </div>
+
+              <form onSubmit={handleRegistrarAbono} className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="montoAbono">Monto</Label>
+                    <Input
+                      id="montoAbono"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={montoAbono}
+                      onChange={(e) => setMontoAbono(e.target.value)}
+                      disabled={registrandoAbono}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="metodoPagoAbono">Método de pago</Label>
+                    <Select value={metodoPagoAbono} onValueChange={(valor) => setMetodoPagoAbono(valor as MetodoPago)}>
+                      <SelectTrigger id="metodoPagoAbono" disabled={registrandoAbono}>
+                        <SelectValue placeholder="Selecciona un método" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {metodosPago.map((metodo) => (
+                          <SelectItem key={metodo.valor} value={metodo.valor}>
+                            {metodo.etiqueta}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {errorAbono && (
+                  <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                    {errorAbono}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePagarSaldoCompleto}
+                    disabled={registrandoAbono || saldoPendiente <= 0}
+                  >
+                    Pagar saldo completo
+                  </Button>
+                  <Button type="submit" variant="gold" className="sm:flex-1" disabled={registrandoAbono}>
+                    {registrandoAbono && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+                    Registrar abono
+                  </Button>
+                </div>
+              </form>
+
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-sm font-medium text-navy">Historial de abonos</p>
+                {cargandoAbonos ? (
+                  <div className="flex items-center gap-2 py-4 text-sm text-text-muted">
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    Cargando abonos...
+                  </div>
+                ) : abonos.length === 0 ? (
+                  <p className="py-2 text-sm text-text-muted">Todavía no se han registrado abonos.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-md border border-border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Fecha</TableHead>
+                          <TableHead>Método</TableHead>
+                          <TableHead className="text-right">Monto</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {abonos.map((abono) => (
+                          <TableRow key={abono.id}>
+                            <TableCell className="text-navy">{formatoFecha(abono.fecha)}</TableCell>
+                            <TableCell className="text-navy">{abono.metodoPago}</TableCell>
+                            <TableCell className="text-right font-medium text-navy">
+                              {formatoMoneda.format(abono.monto)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
 
@@ -830,19 +825,22 @@ export function FiadoPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={confirmandoCancelacion} onOpenChange={(open) => !open && setConfirmandoCancelacion(false)}>
+      <AlertDialog
+        open={confirmandoCancelarCuenta}
+        onOpenChange={(open) => !cancelandoCuenta && setConfirmandoCancelarCuenta(open)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar cuenta fiada</AlertDialogTitle>
+            <AlertDialogTitle>¿Cancelar esta cuenta?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se cancelará esta cuenta abierta y se devolverá todo el stock de sus productos. Esta acción no se puede
-              deshacer.
+              Se repondrá el stock de todos los productos agregados y la cuenta quedará cancelada. Esta acción no
+              se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancelandoCuenta}>Volver</AlertDialogCancel>
+            <AlertDialogCancel disabled={cancelandoCuenta}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmarCancelarCuenta} disabled={cancelandoCuenta}>
-              {cancelandoCuenta ? 'Cancelando...' : 'Cancelar cuenta'}
+              {cancelandoCuenta ? 'Cancelando...' : 'Sí, cancelar cuenta'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
