@@ -13,6 +13,7 @@ import { Ventas } from './pages/Ventas';
 import { FiadoPage } from './pages/FiadoPage';
 import { HistorialVentas } from './pages/HistorialVentas';
 import { Pedidos } from './pages/Pedidos';
+import { Clientes } from './pages/Clientes';
 import { Proveedores } from './pages/Proveedores';
 import { CuentasPorPagar } from './pages/CuentasPorPagar';
 import { PaginaProximamente } from './pages/PaginaProximamente';
@@ -48,7 +49,7 @@ function App() {
                 <Route path="/ventas/fiado" element={<FiadoPage />} />
                 <Route path="/ventas/historial" element={<HistorialVentas />} />
                 <Route path="/pedidos" element={<Pedidos />} />
-                <Route path="/clientes" element={<PaginaProximamente titulo="Clientes" />} />
+                <Route path="/clientes" element={<Clientes />} />
                 <Route path="/proveedores" element={<Proveedores />} />
                 <Route path="/proveedores/cuentas-por-pagar" element={<CuentasPorPagar />} />
                 <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />

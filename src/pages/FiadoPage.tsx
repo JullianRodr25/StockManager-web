@@ -176,7 +176,7 @@ export function FiadoPage() {
       setBuscandoClientes(true);
       setErrorBusquedaCliente(null);
       try {
-        const clientes = await buscarClientes(terminoCliente, token);
+        const clientes = await buscarClientes(terminoCliente, token, true);
         setResultadosClientes(clientes);
       } catch (err) {
         setErrorBusquedaCliente(err instanceof ApiError ? err.message : 'No se pudieron buscar clientes.');

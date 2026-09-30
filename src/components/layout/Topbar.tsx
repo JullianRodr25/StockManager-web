@@ -1,10 +1,10 @@
-import { Menu, Bell, Moon, Sun } from 'lucide-react';
+import { Menu, Moon, Sun } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { NotificacionesBell } from './NotificacionesBell';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,9 +13,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-// TODO: conectar a datos reales de alertas (backorders + créditos por vencer).
-const ALERTAS_PENDIENTES = 3;
 
 const TITULOS_POR_RUTA: Record<string, string> = {
   '/': 'Dashboard',
@@ -66,20 +63,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           {theme === 'dark' ? <Sun className="h-5 w-5 text-navy" /> : <Moon className="h-5 w-5 text-navy" />}
         </Button>
 
-        <div className="relative">
-          <Button variant="ghost" size="icon">
-            <Bell className="h-5 w-5 text-navy" />
-            <span className="sr-only">Alertas</span>
-          </Button>
-          {ALERTAS_PENDIENTES > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[0.65rem]"
-            >
-              {ALERTAS_PENDIENTES}
-            </Badge>
-          )}
-        </div>
+        <NotificacionesBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
