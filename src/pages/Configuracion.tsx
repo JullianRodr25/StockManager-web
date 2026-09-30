@@ -30,12 +30,16 @@ export function Configuracion() {
   const [tarifaIvaInput, setTarifaIvaInput] = useState('');
   const [guardandoIva, setGuardandoIva] = useState(false);
   const [errorIva, setErrorIva] = useState<string | null>(null);
+  const [telefonoAdminInput, setTelefonoAdminInput] = useState('');
+  const [guardandoTelefonoAdmin, setGuardandoTelefonoAdmin] = useState(false);
+  const [errorTelefonoAdmin, setErrorTelefonoAdmin] = useState<string | null>(null);
 
   useEffect(() => {
     obtenerConfiguracion(token)
       .then((data) => {
         setConfiguracion(data);
         setTarifaIvaInput(String(data.tarifaIvaPorDefecto));
+        setTelefonoAdminInput(data.telefonoNotificacionesAdmin ?? '');
       })
       .catch((err) => {
         setErrorConfiguracion(
@@ -96,7 +100,15 @@ export function Configuracion() {
 
     setGuardandoIva(true);
     try {
-      const actualizado = await actualizarConfiguracion({ tarifaIvaPorDefecto: valor }, token);
+      const actualizado = await actualizarConfiguracion(
+        {
+          tarifaIvaPorDefecto: valor,
+          // El PUT reemplaza toda la fila de Configuracion, así que se reenvía el teléfono
+          // vigente para no borrarlo al guardar solo la tarifa.
+          telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
+        },
+        token
+      );
       setConfiguracion(actualizado);
       setTarifaIvaInput(String(actualizado.tarifaIvaPorDefecto));
       toast.success('Tarifa de IVA actualizada correctamente');
@@ -106,6 +118,40 @@ export function Configuracion() {
       toast.error(mensaje);
     } finally {
       setGuardandoIva(false);
+    }
+  }
+
+  const FORMATO_TELEFONO_E164 = /^\+[1-9]\d{7,14}$/;
+
+  async function handleGuardarTelefonoAdmin(e: FormEvent) {
+    e.preventDefault();
+    setErrorTelefonoAdmin(null);
+
+    const valor = telefonoAdminInput.trim();
+    if (valor !== '' && !FORMATO_TELEFONO_E164.test(valor)) {
+      setErrorTelefonoAdmin('Ingresa un número en formato internacional, ej. +573001234567, o déjalo vacío para desactivar el aviso.');
+      return;
+    }
+
+    setGuardandoTelefonoAdmin(true);
+    try {
+      const actualizado = await actualizarConfiguracion(
+        {
+          tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
+          telefonoNotificacionesAdmin: valor === '' ? null : valor,
+        },
+        token
+      );
+      setConfiguracion(actualizado);
+      setTelefonoAdminInput(actualizado.telefonoNotificacionesAdmin ?? '');
+      toast.success('Teléfono de notificaciones actualizado correctamente');
+    } catch (err) {
+      const mensaje =
+        err instanceof ApiError ? err.message : 'No se pudo actualizar el teléfono de notificaciones.';
+      setErrorTelefonoAdmin(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setGuardandoTelefonoAdmin(false);
     }
   }
 
@@ -231,6 +277,65 @@ export function Configuracion() {
           )}
         </CardContent>
       </Card>
+
+      {/*
+        A diferencia de las tarjetas de arriba (que muestran una vista de solo lectura a
+        Empleado), esta tarjeta no se muestra en absoluto si no eres Admin: el backend
+        directamente omite este teléfono en la respuesta para cualquier otro rol, así que no
+        habría nada real que mostrarle a un Empleado aquí — es justo el aislamiento "por rol,
+        por seguridad" que se pidió para este dato.
+      */}
+      {esAdmin && (
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-navy">Notificaciones por WhatsApp</CardTitle>
+            <CardDescription>
+              Número que recibe los avisos administrativos: pedidos nuevos y cuentas por pagar
+              próximas a vencer. Solo un administrador puede ver y cambiar este dato.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {cargandoConfiguracion ? (
+              <div className="flex items-center gap-2 text-sm text-text-muted">
+                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                Cargando configuración de notificaciones...
+              </div>
+            ) : errorConfiguracion ? (
+              <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                {errorConfiguracion}
+              </div>
+            ) : (
+              <form onSubmit={handleGuardarTelefonoAdmin} className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="telefonoNotificacionesAdmin">Teléfono de WhatsApp</Label>
+                  <Input
+                    id="telefonoNotificacionesAdmin"
+                    type="tel"
+                    placeholder="+573001234567"
+                    value={telefonoAdminInput}
+                    onChange={(e) => setTelefonoAdminInput(e.target.value)}
+                    className="max-w-xs"
+                  />
+                  <p className="text-xs text-text-muted">
+                    Formato internacional (E.164), ej. +573001234567. Déjalo vacío para desactivar
+                    este aviso.
+                  </p>
+                </div>
+
+                {errorTelefonoAdmin && (
+                  <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                    {errorTelefonoAdmin}
+                  </div>
+                )}
+
+                <Button type="submit" variant="gold" disabled={guardandoTelefonoAdmin}>
+                  {guardandoTelefonoAdmin ? 'Guardando...' : 'Guardar teléfono'}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Separator />
 

@@ -53,7 +53,15 @@ const modulos: ModuloNav[] = [
   },
   { label: 'Pedidos', to: '/pedidos', icon: Truck },
   { label: 'Clientes', to: '/clientes', icon: Users },
-  { label: 'Proveedores', to: '/proveedores', icon: Building2 },
+  {
+    label: 'Proveedores',
+    to: '/proveedores',
+    icon: Building2,
+    children: [
+      { label: 'Proveedores', to: '/proveedores' },
+      { label: 'Cuentas por pagar', to: '/proveedores/cuentas-por-pagar' },
+    ],
+  },
   { label: 'Reportes', to: '/reportes', icon: BarChart3 },
   { label: 'Configuración', to: '/configuracion', icon: Settings },
 ];
@@ -83,6 +91,7 @@ function SidebarNav() {
   const [expandido, setExpandido] = useState<Record<string, boolean>>({
     '/inventario': location.pathname.startsWith('/inventario'),
     '/ventas': location.pathname.startsWith('/ventas'),
+    '/proveedores': location.pathname.startsWith('/proveedores'),
   });
 
   return (
