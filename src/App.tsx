@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LogoProvider } from './context/LogoContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { StockRealtimeProvider } from './context/StockRealtimeContext';
 import { RutaProtegida } from './components/RutaProtegida';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
@@ -25,37 +26,39 @@ function App() {
       <BrowserRouter>
         <LogoProvider>
           <AuthProvider>
-            <Toaster position="top-right" richColors />
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route
-                element={
-                  <RutaProtegida>
-                    <AppLayout />
-                  </RutaProtegida>
-                }
-              >
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/inventario" element={<Inventario />} />
+            <StockRealtimeProvider>
+              <Toaster position="top-right" richColors />
+              <Routes>
+                <Route path="/login" element={<Login />} />
                 <Route
-                  path="/inventario/etiquetas"
                   element={
-                    <RutaProtegida rolesPermitidos={['Admin']}>
-                      <EtiquetasPendientes />
+                    <RutaProtegida>
+                      <AppLayout />
                     </RutaProtegida>
                   }
-                />
-                <Route path="/ventas" element={<Ventas />} />
-                <Route path="/ventas/fiado" element={<FiadoPage />} />
-                <Route path="/ventas/historial" element={<HistorialVentas />} />
-                <Route path="/pedidos" element={<Pedidos />} />
-                <Route path="/clientes" element={<Clientes />} />
-                <Route path="/proveedores" element={<Proveedores />} />
-                <Route path="/proveedores/cuentas-por-pagar" element={<CuentasPorPagar />} />
-                <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
-                <Route path="/configuracion" element={<Configuracion />} />
-              </Route>
-            </Routes>
+                >
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/inventario" element={<Inventario />} />
+                  <Route
+                    path="/inventario/etiquetas"
+                    element={
+                      <RutaProtegida rolesPermitidos={['Admin']}>
+                        <EtiquetasPendientes />
+                      </RutaProtegida>
+                    }
+                  />
+                  <Route path="/ventas" element={<Ventas />} />
+                  <Route path="/ventas/fiado" element={<FiadoPage />} />
+                  <Route path="/ventas/historial" element={<HistorialVentas />} />
+                  <Route path="/pedidos" element={<Pedidos />} />
+                  <Route path="/clientes" element={<Clientes />} />
+                  <Route path="/proveedores" element={<Proveedores />} />
+                  <Route path="/proveedores/cuentas-por-pagar" element={<CuentasPorPagar />} />
+                  <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
+                  <Route path="/configuracion" element={<Configuracion />} />
+                </Route>
+              </Routes>
+            </StockRealtimeProvider>
           </AuthProvider>
         </LogoProvider>
       </BrowserRouter>

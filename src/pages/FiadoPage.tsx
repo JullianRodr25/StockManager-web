@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
 import { obtenerProductos } from '@/services/inventarioService';
+import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import { buscarClientes } from '@/services/clienteService';
 import {
   abrirFiado,
@@ -121,6 +122,10 @@ export function FiadoPage() {
       setCargandoProductos(false);
     }
   }, [token]);
+
+  // Cuando otro usuario vende algo (u otra acción que cambie el stock), esto actualiza el
+  // stockActual de los productos ya cargados en esta pantalla sin recargar nada.
+  useSincronizacionStock(setProductos);
 
   useEffect(() => {
     cargarProductos();

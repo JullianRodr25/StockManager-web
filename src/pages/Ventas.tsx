@@ -8,6 +8,7 @@ import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon } from '@/services/impresionService';
 import { obtenerProductos } from '@/services/inventarioService';
 import { registrarVenta } from '@/services/ventaService';
+import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import type { Producto } from '@/types/inventario';
 import type { MetodoPago, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
 import { BuscadorProductos } from '@/components/BuscadorProductos';
@@ -127,6 +128,10 @@ export function Ventas() {
       setCargandoProductos(false);
     }
   }, [token]);
+
+  // Cuando otro usuario vende algo (u otra acción que cambie el stock), esto actualiza el
+  // stockActual de los productos ya cargados en esta pantalla sin recargar nada.
+  useSincronizacionStock(setProductos);
 
   useEffect(() => {
     cargarProductos();

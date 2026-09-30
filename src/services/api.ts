@@ -2,7 +2,7 @@
 // para tener en un solo lugar: la URL base, el header de
 // autorización, y el manejo de errores.
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://localhost:7009';
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://localhost:7009';
 
 export class ApiError extends Error {
   status: number;

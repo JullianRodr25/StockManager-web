@@ -16,6 +16,7 @@ import {
 } from '@/services/inventarioService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { obtenerProveedores } from '@/services/proveedorService';
+import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import type {
   ActualizarProductoRequest,
   Categoria,
@@ -165,6 +166,10 @@ export function Inventario() {
     },
     [token]
   );
+
+  // Cuando otro usuario vende algo (u otra acción que cambie el stock), esto actualiza el
+  // stockActual de los productos ya cargados en esta pantalla sin recargar nada.
+  useSincronizacionStock(setProductos);
 
   useEffect(() => {
     obtenerCategorias(token)
