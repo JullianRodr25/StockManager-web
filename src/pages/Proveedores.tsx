@@ -48,6 +48,7 @@ interface ProveedorForm {
   telefono: string;
   email: string;
   direccion: string;
+  numeroWhatsApp: string;
 }
 
 const formularioVacio: ProveedorForm = {
@@ -56,7 +57,10 @@ const formularioVacio: ProveedorForm = {
   telefono: '',
   email: '',
   direccion: '',
+  numeroWhatsApp: '',
 };
+
+const FORMATO_TELEFONO_E164 = /^\+[1-9]\d{7,14}$/;
 
 export function Proveedores() {
   const { usuario, token } = useAuth();
@@ -117,6 +121,7 @@ export function Proveedores() {
       telefono: proveedor.telefono ?? '',
       email: proveedor.email ?? '',
       direccion: proveedor.direccion ?? '',
+      numeroWhatsApp: proveedor.numeroWhatsApp ?? '',
     });
     setErrorFormulario(null);
     setDialogAbierto(true);
@@ -138,12 +143,19 @@ export function Proveedores() {
       return;
     }
 
+    const numeroWhatsAppNormalizado = formulario.numeroWhatsApp.trim() || null;
+    if (numeroWhatsAppNormalizado && !FORMATO_TELEFONO_E164.test(numeroWhatsAppNormalizado)) {
+      setErrorFormulario('El número de WhatsApp debe estar en formato internacional, ej. +573001234567.');
+      return;
+    }
+
     const data: CrearProveedorRequest | ActualizarProveedorRequest = {
       nombre: formulario.nombre.trim(),
       numeroIdentificacion: formulario.numeroIdentificacion.trim() || null,
       telefono: formulario.telefono.trim() || null,
       email: formulario.email.trim() || null,
       direccion: formulario.direccion.trim() || null,
+      numeroWhatsApp: numeroWhatsAppNormalizado,
     };
 
     setGuardando(true);
@@ -235,19 +247,20 @@ export function Proveedores() {
                 <TableHead>NIT / identificación</TableHead>
                 <TableHead>Teléfono</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>WhatsApp</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {cargando ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
                   </TableCell>
                 </TableRow>
               ) : proveedoresVisibles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
                     No hay proveedores registrados.
                   </TableCell>
                 </TableRow>
@@ -265,6 +278,7 @@ export function Proveedores() {
                       <TableCell className="text-navy">{proveedor.numeroIdentificacion ?? '—'}</TableCell>
                       <TableCell className="text-navy">{proveedor.telefono ?? '—'}</TableCell>
                       <TableCell className="text-text-muted">{proveedor.email ?? '—'}</TableCell>
+                      <TableCell className="text-navy">{proveedor.numeroWhatsApp ?? '—'}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
                           <Button variant="ghost" size="icon" asChild aria-label={`Cuentas por pagar de ${proveedor.nombre}`}>
@@ -377,6 +391,20 @@ export function Proveedores() {
                 value={formulario.direccion}
                 onChange={(e) => actualizarCampoFormulario('direccion', e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="numeroWhatsApp">WhatsApp para avisos de stock bajo (opcional)</Label>
+              <Input
+                id="numeroWhatsApp"
+                placeholder="+573001234567"
+                value={formulario.numeroWhatsApp}
+                onChange={(e) => actualizarCampoFormulario('numeroWhatsApp', e.target.value)}
+              />
+              <p className="text-xs text-text-muted">
+                Formato internacional (con el + y el código de país). Si lo configuras, el sistema le avisará
+                automáticamente por WhatsApp cuando alguno de sus productos entre en stock bajo.
+              </p>
             </div>
 
             {errorFormulario && (

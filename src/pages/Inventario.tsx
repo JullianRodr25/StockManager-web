@@ -15,6 +15,7 @@ import {
   reactivarProducto,
 } from '@/services/inventarioService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
+import { obtenerProveedores } from '@/services/proveedorService';
 import type {
   ActualizarProductoRequest,
   Categoria,
@@ -24,6 +25,7 @@ import type {
   ImportarProductosResponse,
   Producto,
 } from '@/types/inventario';
+import type { Proveedor } from '@/types/proveedores';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,6 +76,7 @@ interface NuevoProductoForm {
   stockMinimo: string;
   codigoBarras: string;
   tarifaIva: string;
+  proveedorId: string;
 }
 
 const formularioVacio: NuevoProductoForm = {
@@ -84,7 +87,10 @@ const formularioVacio: NuevoProductoForm = {
   stockMinimo: '',
   codigoBarras: '',
   tarifaIva: '',
+  proveedorId: '',
 };
+
+const SIN_PROVEEDOR = 'ninguno';
 
 function obtenerErroresImportacion(data: unknown): ImportarProductoError[] {
   if (!data || typeof data !== 'object' || !('errores' in data) || !Array.isArray(data.errores)) {
@@ -115,6 +121,7 @@ export function Inventario() {
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas');
   const [busqueda, setBusqueda] = useState('');
   const [tarifaIvaGeneral, setTarifaIvaGeneral] = useState<number | null>(null);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
 
   const [codigoBarrasBusqueda, setCodigoBarrasBusqueda] = useState('');
   const [buscandoPorCodigo, setBuscandoPorCodigo] = useState(false);
@@ -178,6 +185,15 @@ export function Inventario() {
   }, [token]);
 
   useEffect(() => {
+    obtenerProveedores(1, 200, token, true)
+      .then((respuesta) => setProveedores(respuesta.data))
+      .catch(() => {
+        // Si fallan los proveedores, el selector del formulario simplemente queda vacío;
+        // la tabla de productos puede seguir funcionando sin el nombre del proveedor.
+      });
+  }, [token]);
+
+  useEffect(() => {
     const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
     cargarProductos(1, categoriaId);
     // Solo debe recargar cuando cambia el filtro de categoría; cargarProductos
@@ -205,6 +221,11 @@ export function Inventario() {
   const categoriaPorId = useMemo(
     () => new Map(categorias.map((c) => [c.id, c.nombre])),
     [categorias]
+  );
+
+  const proveedorPorId = useMemo(
+    () => new Map(proveedores.map((p) => [p.id, p.nombre])),
+    [proveedores]
   );
 
   async function handleBuscarPorCodigoBarras(e: KeyboardEvent<HTMLInputElement>) {
@@ -258,6 +279,7 @@ export function Inventario() {
       stockMinimo: String(producto.stockMinimo),
       codigoBarras: producto.codigoBarras ?? '',
       tarifaIva: String(producto.tarifaIva),
+      proveedorId: producto.proveedorId ? String(producto.proveedorId) : '',
     });
     setErrorFormulario(null);
     setDialogNuevoAbierto(true);
@@ -291,6 +313,8 @@ export function Inventario() {
       return;
     }
 
+    const proveedorId = formulario.proveedorId ? Number(formulario.proveedorId) : null;
+
     guardadoEnCursoRef.current = true;
     setGuardando(true);
     try {
@@ -301,6 +325,7 @@ export function Inventario() {
           precio,
           stockMinimo,
           tarifaIva,
+          proveedorId,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
         };
         await actualizarProducto(productoEditando.id, data, token);
@@ -313,6 +338,7 @@ export function Inventario() {
           stockInicial,
           stockMinimo,
           tarifaIva,
+          proveedorId,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
         };
         await crearProducto(data, token);
@@ -445,6 +471,9 @@ export function Inventario() {
         </TableCell>
         <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
         <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
+        <TableCell className="text-navy">
+          {producto.proveedorId ? proveedorPorId.get(producto.proveedorId) ?? '—' : '—'}
+        </TableCell>
         {esAdmin && (
           <TableCell>
             <div className="flex items-center justify-end gap-1">
@@ -595,6 +624,7 @@ export function Inventario() {
                 <TableHead>Stock actual</TableHead>
                 <TableHead>Stock mínimo</TableHead>
                 <TableHead>Código de barras</TableHead>
+                <TableHead>Proveedor</TableHead>
                 {esAdmin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
@@ -603,13 +633,13 @@ export function Inventario() {
                 renderFilaProducto(productoEncontradoPorCodigo)
               ) : cargando ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 9 : 8} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 10 : 9} className="py-8 text-center text-text-muted">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
                   </TableCell>
                 </TableRow>
               ) : productosFiltrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 9 : 8} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 10 : 9} className="py-8 text-center text-text-muted">
                     No se encontraron productos.
                   </TableCell>
                 </TableRow>
@@ -753,6 +783,32 @@ export function Inventario() {
               />
               <p className="text-xs text-text-muted">
                 Déjalo vacío si el producto no trae código de fábrica.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="proveedorId">Proveedor (opcional)</Label>
+              <Select
+                value={formulario.proveedorId || SIN_PROVEEDOR}
+                onValueChange={(valor) =>
+                  actualizarCampoFormulario('proveedorId', valor === SIN_PROVEEDOR ? '' : valor)
+                }
+              >
+                <SelectTrigger id="proveedorId">
+                  <SelectValue placeholder="Sin proveedor asignado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SIN_PROVEEDOR}>Sin proveedor asignado</SelectItem>
+                  {proveedores.map((proveedor) => (
+                    <SelectItem key={proveedor.id} value={String(proveedor.id)}>
+                      {proveedor.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-text-muted">
+                Si el proveedor tiene un WhatsApp configurado, se le avisará automáticamente
+                cuando este producto entre en stock bajo.
               </p>
             </div>
 

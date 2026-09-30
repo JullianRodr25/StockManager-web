@@ -7,6 +7,7 @@ export interface CrearProveedorRequest {
   telefono?: string | null;
   email?: string | null;
   direccion?: string | null;
+  numeroWhatsApp?: string | null;
 }
 
 export type ActualizarProveedorRequest = CrearProveedorRequest;
@@ -19,6 +20,7 @@ export interface Proveedor {
   email: string | null;
   direccion: string | null;
   activo: boolean;
+  numeroWhatsApp: string | null;
 }
 
 export interface ProveedoresPaginadosResponse {
