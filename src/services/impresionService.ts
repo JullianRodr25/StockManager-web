@@ -1,0 +1,114 @@
+// Impresión física del tiquete de venta y apertura del cajón de dinero, a través de
+// QZ Tray: un pequeño programa que Julian debe instalar una sola vez en el computador
+// del mostrador (ver IMPRESION-TIQUETES.md en la raíz del repo). Un navegador no puede
+// hablarle directamente al puerto/USB de una impresora térmica; QZ Tray abre un
+// WebSocket local (normalmente wss://localhost:8181 o ws://localhost:8182) que este
+// servicio usa para mandarle los comandos ESC/POS crudos.
+import qz from 'qz-tray';
+import { formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
+import type { VentaResponse } from '@/types/ventas';
+
+const ESC = '\x1B';
+const GS = '\x1D';
+const ANCHO_TICKET = 32; // columnas para una impresora de 58mm; en 80mm sobra espacio pero se ve bien igual.
+
+// Comando estándar de apertura de cajón (ESC p m t1 t2), el mismo que usan casi todas
+// las impresoras térmicas con puerto RJ11/RJ12 para el cajón de dinero.
+const ABRIR_CAJON = ESC + 'p' + '\x00' + '\x19' + '\xFA';
+
+let conexionEnCurso: Promise<void> | null = null;
+
+async function asegurarConexion(): Promise<void> {
+  if (qz.websocket.isActive()) return;
+
+  if (!conexionEnCurso) {
+    conexionEnCurso = qz.websocket.connect().finally(() => {
+      conexionEnCurso = null;
+    });
+  }
+
+  try {
+    await conexionEnCurso;
+  } catch {
+    throw new Error(
+      'No se pudo conectar con QZ Tray. Verifica que esté instalado y abierto en este computador.'
+    );
+  }
+}
+
+function lineaDosColumnas(izquierda: string, derecha: string, ancho: number = ANCHO_TICKET): string {
+  const espacio = Math.max(ancho - izquierda.length - derecha.length, 1);
+  return izquierda + ' '.repeat(espacio) + derecha + '\n';
+}
+
+function construirTiquete(venta: VentaResponse): string[] {
+  const lineas: string[] = [];
+
+  lineas.push(ESC + '@'); // reset de la impresora
+  lineas.push(ESC + 'a' + '\x01'); // centrar
+  lineas.push(ESC + '!' + '\x18'); // negrita + doble alto/ancho
+  lineas.push('FERRETERIA GOLD\n');
+  lineas.push(ESC + '!' + '\x00'); // texto normal
+  lineas.push(`Factura ${venta.numeroFactura}\n`);
+  lineas.push(ESC + 'a' + '\x00'); // alinear a la izquierda
+  lineas.push(`${formatoFecha(venta.fecha)}\n`);
+  if (venta.nombreComprador) {
+    lineas.push(`Cliente: ${venta.nombreComprador}\n`);
+  }
+  lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+
+  for (const detalle of venta.detalles) {
+    lineas.push(`${detalle.productoNombre}\n`);
+    lineas.push(
+      lineaDosColumnas(
+        `  ${detalle.cantidad} x ${formatoMoneda.format(detalle.precioUnitario)}`,
+        formatoMoneda.format(detalle.subtotalConIva)
+      )
+    );
+  }
+
+  lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+  lineas.push(ESC + '!' + '\x08'); // negrita
+  lineas.push(lineaDosColumnas('TOTAL', formatoMoneda.format(venta.total)));
+  lineas.push(ESC + '!' + '\x00');
+
+  if (venta.metodoPago === 'Efectivo' && venta.montoRecibido != null) {
+    lineas.push(lineaDosColumnas('Recibido', formatoMoneda.format(venta.montoRecibido)));
+    lineas.push(lineaDosColumnas('Cambio', formatoMoneda.format(venta.cambio ?? 0)));
+  } else {
+    lineas.push(`Metodo de pago: ${venta.metodoPago}\n`);
+  }
+
+  lineas.push('\n');
+  lineas.push(ESC + 'a' + '\x01');
+  lineas.push('Gracias por su compra\n');
+  lineas.push('\n\n\n');
+  lineas.push(GS + 'V' + '\x00'); // corte de papel
+
+  // La orden de apertura del cajón se envía junto con el tiquete, en el mismo trabajo de
+  // impresión: así, al imprimir la factura, el cajón se abre automáticamente (igual que
+  // en el sistema anterior de Julian).
+  lineas.push(ABRIR_CAJON);
+
+  return lineas;
+}
+
+/**
+ * Imprime el tiquete físico de una venta (o cuenta fiada cerrada) en la impresora térmica
+ * configurada, y abre el cajón de dinero como parte del mismo trabajo de impresión.
+ */
+export async function imprimirRecibo(venta: VentaResponse, nombreImpresora: string): Promise<void> {
+  await asegurarConexion();
+  const config = qz.configs.create(nombreImpresora);
+  await qz.print(config, construirTiquete(venta));
+}
+
+/**
+ * Abre el cajón de dinero sin imprimir nada, para cuando el cajero necesita sacar o
+ * guardar efectivo fuera de una venta (por ejemplo, para dar cambio de un billete grande).
+ */
+export async function abrirCajon(nombreImpresora: string): Promise<void> {
+  await asegurarConexion();
+  const config = qz.configs.create(nombreImpresora);
+  await qz.print(config, [ABRIR_CAJON]);
+}

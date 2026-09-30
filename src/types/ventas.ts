@@ -15,6 +15,9 @@ export interface RegistrarVentaRequest {
   emailComprador?: string | null;
   metodoPago: MetodoPago;
   lineas: LineaVentaRequest[];
+  // Obligatorio (y validado contra el total) cuando metodoPago es "Efectivo"; en cualquier
+  // otro método el backend lo ignora y siempre queda null.
+  montoRecibido?: number | null;
 }
 
 export interface DetalleVentaResponse {
@@ -41,6 +44,8 @@ export interface VentaResponse {
   total: number;
   numeroFactura: string;
   detalles: DetalleVentaResponse[];
+  montoRecibido: number | null;
+  cambio: number | null;
 }
 
 export interface VentaResumenResponse {

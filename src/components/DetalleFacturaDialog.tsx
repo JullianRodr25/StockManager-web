@@ -1,4 +1,9 @@
-import { Loader2, Printer } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, Printer, Receipt } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext';
+import { obtenerConfiguracion } from '@/services/configuracionService';
+import { imprimirRecibo } from '@/services/impresionService';
 import type { VentaResponse } from '@/types/ventas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,8 +51,38 @@ interface DetalleFacturaDialogProps {
 }
 
 export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFacturaDialogProps) {
+  const { token } = useAuth();
+  const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
+  const [imprimiendoTiquete, setImprimiendoTiquete] = useState(false);
+
+  // Se consulta el nombre de la impresora configurada solo cuando el diálogo se abre (no en
+  // cada render), y solo una vez: si no hay impresora configurada, el botón de tiquete
+  // físico simplemente no se muestra, en vez de mostrar un botón que siempre fallaría.
+  useEffect(() => {
+    if (!open || nombreImpresora !== null) return;
+    obtenerConfiguracion(token)
+      .then((config) => setNombreImpresora(config.nombreImpresoraTickets))
+      .catch(() => {
+        // Si no se pudo consultar la configuración, simplemente no se ofrece el botón de
+        // impresión física; el resto del diálogo (factura en pantalla) sigue funcionando.
+      });
+  }, [open, nombreImpresora, token]);
+
   function handleImprimir() {
     window.print();
+  }
+
+  async function handleImprimirTiquete() {
+    if (!venta || !nombreImpresora) return;
+    setImprimiendoTiquete(true);
+    try {
+      await imprimirRecibo(venta, nombreImpresora);
+      toast.success('Tiquete enviado a la impresora y cajón abierto');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo imprimir el tiquete.');
+    } finally {
+      setImprimiendoTiquete(false);
+    }
   }
 
   return (
@@ -146,6 +181,21 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
             </div>
 
             <DialogFooter>
+              {nombreImpresora && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleImprimirTiquete}
+                  disabled={imprimiendoTiquete}
+                >
+                  {imprimiendoTiquete ? (
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <Receipt className="h-4 w-4" />
+                  )}
+                  Imprimir tiquete y abrir caja
+                </Button>
+              )}
               <Button type="button" variant="gold" onClick={handleImprimir}>
                 <Printer className="h-4 w-4" />
                 Imprimir factura

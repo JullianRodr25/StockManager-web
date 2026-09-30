@@ -95,6 +95,11 @@ export function FiadoPage() {
   const [cargandoAbonos, setCargandoAbonos] = useState(false);
   const [montoAbono, setMontoAbono] = useState('');
   const [metodoPagoAbono, setMetodoPagoAbono] = useState<MetodoPago | ''>('');
+  // Monto recibido/cambio del abono en efectivo: es solo apoyo visual para el cajero,
+  // no viaja al backend (RegistrarAbonoRequest no cambia). El "monto" que se registra
+  // como abono siempre queda topado al saldo pendiente, así que el vuelto nunca se
+  // guarda como parte de la cuenta, solo se muestra en pantalla al momento de cobrar.
+  const [montoRecibidoAbono, setMontoRecibidoAbono] = useState('');
   const [registrandoAbono, setRegistrandoAbono] = useState(false);
   const [errorAbono, setErrorAbono] = useState<string | null>(null);
 
@@ -296,6 +301,7 @@ export function FiadoPage() {
     setAbonos([]);
     setMontoAbono('');
     setMetodoPagoAbono('');
+    setMontoRecibidoAbono('');
     setErrorAbono(null);
   }
 
@@ -389,6 +395,12 @@ export function FiadoPage() {
     setMontoAbono(saldoPendiente > 0 ? String(Math.round(saldoPendiente)) : '0');
   }
 
+  const montoAbonoNumero = Number(montoAbono);
+  const montoRecibidoAbonoNumero = Number(montoRecibidoAbono);
+  const montoRecibidoAbonoValido =
+    montoRecibidoAbono.trim() !== '' && Number.isFinite(montoRecibidoAbonoNumero);
+  const cambioAbono = montoRecibidoAbonoValido ? montoRecibidoAbonoNumero - montoAbonoNumero : null;
+
   async function handleRegistrarAbono(event: FormEvent) {
     event.preventDefault();
     if (!cuentaAbierta || registrandoAbono) return;
@@ -401,6 +413,10 @@ export function FiadoPage() {
     }
     if (!metodoPagoAbono) {
       setErrorAbono('Selecciona un método de pago.');
+      return;
+    }
+    if (metodoPagoAbono === 'Efectivo' && (!montoRecibidoAbonoValido || montoRecibidoAbonoNumero < monto)) {
+      setErrorAbono('Ingresa el monto recibido en efectivo; debe ser al menos el monto del abono.');
       return;
     }
 
@@ -424,6 +440,7 @@ export function FiadoPage() {
         setCuentaAbierta(venta);
         setMontoAbono('');
         setMetodoPagoAbono('');
+        setMontoRecibidoAbono('');
         toast.success('Abono registrado', {
           description: `Saldo pendiente: ${formatoMoneda.format(saldoActualizado)}`,
         });
@@ -745,6 +762,33 @@ export function FiadoPage() {
                     </Select>
                   </div>
                 </div>
+
+                {metodoPagoAbono === 'Efectivo' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="montoRecibidoAbono">Monto recibido</Label>
+                    <Input
+                      id="montoRecibidoAbono"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={montoRecibidoAbono}
+                      onChange={(e) => setMontoRecibidoAbono(e.target.value)}
+                      disabled={registrandoAbono}
+                    />
+                    {montoRecibidoAbonoValido && (
+                      <p
+                        className={
+                          'text-sm font-medium ' +
+                          (montoRecibidoAbonoNumero < montoAbonoNumero ? 'text-error-text' : 'text-navy')
+                        }
+                      >
+                        {montoRecibidoAbonoNumero < montoAbonoNumero
+                          ? `Falta ${formatoMoneda.format(montoAbonoNumero - montoRecibidoAbonoNumero)}`
+                          : `Cambio: ${formatoMoneda.format(cambioAbono ?? 0)}`}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {errorAbono && (
                   <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Loader2, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
+import { Loader2, Lock, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { obtenerConfiguracion } from '@/services/configuracionService';
+import { abrirCajon } from '@/services/impresionService';
 import { obtenerProductos } from '@/services/inventarioService';
 import { registrarVenta } from '@/services/ventaService';
 import type { Producto } from '@/types/inventario';
@@ -79,6 +81,7 @@ export function Ventas() {
   const [telefonoComprador, setTelefonoComprador] = useState(estadoInicialComprador.telefonoComprador);
   const [emailComprador, setEmailComprador] = useState(estadoInicialComprador.emailComprador);
   const [metodoPago, setMetodoPago] = useState<MetodoPago | ''>(estadoInicialComprador.metodoPago);
+  const [montoRecibido, setMontoRecibido] = useState('');
 
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [conflictoStock, setConflictoStock] = useState<string | null>(null);
@@ -87,6 +90,30 @@ export function Ventas() {
 
   const [ventaRecienCreada, setVentaRecienCreada] = useState<VentaResponse | null>(null);
   const [facturaAbierta, setFacturaAbierta] = useState(false);
+
+  const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
+  const [abriendoCajon, setAbriendoCajon] = useState(false);
+
+  useEffect(() => {
+    obtenerConfiguracion(token)
+      .then((config) => setNombreImpresora(config.nombreImpresoraTickets))
+      .catch(() => {
+        // Sin impresora configurada (o sin poder consultar la configuración) el botón de
+        // "Abrir caja" simplemente no aparece; el resto de la pantalla de ventas no depende de esto.
+      });
+  }, [token]);
+
+  async function handleAbrirCajon() {
+    if (!nombreImpresora || abriendoCajon) return;
+    setAbriendoCajon(true);
+    try {
+      await abrirCajon(nombreImpresora);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo abrir el cajón.');
+    } finally {
+      setAbriendoCajon(false);
+    }
+  }
 
   const cargarProductos = useCallback(async () => {
     setCargandoProductos(true);
@@ -125,6 +152,10 @@ export function Ventas() {
   const hayCantidadInvalida = carritoConDatos.some((linea) => linea.cantidadInvalida);
   const total = carritoConDatos.reduce((acumulado, linea) => acumulado + linea.subtotal, 0);
   const carritoVacio = carrito.length === 0;
+
+  const montoRecibidoNumero = Number(montoRecibido);
+  const montoRecibidoValido = montoRecibido.trim() !== '' && Number.isFinite(montoRecibidoNumero);
+  const cambio = montoRecibidoValido ? montoRecibidoNumero - total : null;
 
   // Validación de UX: evita agregar o escribir más unidades de las
   // que el producto tiene en stock. Esto NO reemplaza la validación
@@ -190,6 +221,7 @@ export function Ventas() {
     setTelefonoComprador(estadoInicialComprador.telefonoComprador);
     setEmailComprador(estadoInicialComprador.emailComprador);
     setMetodoPago(estadoInicialComprador.metodoPago);
+    setMontoRecibido('');
     setErrorFormulario(null);
     setConflictoStock(null);
     setDialogFinalizarAbierto(false);
@@ -214,6 +246,10 @@ export function Ventas() {
       setErrorFormulario('Selecciona un método de pago.');
       return;
     }
+    if (metodoPago === 'Efectivo' && (!montoRecibidoValido || montoRecibidoNumero < total)) {
+      setErrorFormulario('Ingresa el monto recibido en efectivo; debe ser al menos el total de la venta.');
+      return;
+    }
     if (modoComprador === 'registrado' && (!Number.isInteger(Number(clienteId)) || Number(clienteId) <= 0)) {
       setErrorFormulario('Ingresa un ID de cliente válido.');
       return;
@@ -235,6 +271,7 @@ export function Ventas() {
         ? { emailComprador: emailComprador.trim() }
         : {}),
       metodoPago,
+      ...(metodoPago === 'Efectivo' ? { montoRecibido: montoRecibidoNumero } : {}),
       lineas: carritoConDatos.map((linea) => ({
         productoId: linea.productoId,
         cantidad: Number(linea.cantidad),
@@ -284,9 +321,27 @@ export function Ventas() {
         />
 
         <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-navy">Venta actual</CardTitle>
-            <CardDescription>Productos agregados a esta venta.</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-navy">Venta actual</CardTitle>
+              <CardDescription>Productos agregados a esta venta.</CardDescription>
+            </div>
+            {nombreImpresora && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAbrirCajon}
+                disabled={abriendoCajon}
+              >
+                {abriendoCajon ? (
+                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                ) : (
+                  <Lock className="h-4 w-4" />
+                )}
+                Abrir caja
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             {carritoVacio ? (
@@ -460,6 +515,37 @@ export function Ventas() {
                 </SelectContent>
               </Select>
             </div>
+
+            {metodoPago === 'Efectivo' && (
+              <div className="space-y-2">
+                <Label htmlFor="montoRecibido">Monto recibido</Label>
+                <Input
+                  id="montoRecibido"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={montoRecibido}
+                  onChange={(e) => setMontoRecibido(e.target.value)}
+                  disabled={registrando}
+                  required
+                  className={cn(
+                    montoRecibidoValido && montoRecibidoNumero < total && 'border-error-text focus-visible:ring-error-text'
+                  )}
+                />
+                {montoRecibidoValido && (
+                  <p
+                    className={cn(
+                      'text-sm font-medium',
+                      montoRecibidoNumero < total ? 'text-error-text' : 'text-navy'
+                    )}
+                  >
+                    {montoRecibidoNumero < total
+                      ? `Falta ${formatoMoneda.format(total - montoRecibidoNumero)}`
+                      : `Cambio: ${formatoMoneda.format(cambio ?? 0)}`}
+                  </p>
+                )}
+              </div>
+            )}
 
             {conflictoStock && (
               <div className="flex flex-col gap-2 rounded-md border border-gold bg-gold/10 px-3 py-2 text-sm text-navy" role="alert">

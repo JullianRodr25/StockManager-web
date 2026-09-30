@@ -33,6 +33,9 @@ export function Configuracion() {
   const [telefonoAdminInput, setTelefonoAdminInput] = useState('');
   const [guardandoTelefonoAdmin, setGuardandoTelefonoAdmin] = useState(false);
   const [errorTelefonoAdmin, setErrorTelefonoAdmin] = useState<string | null>(null);
+  const [nombreImpresoraInput, setNombreImpresoraInput] = useState('');
+  const [guardandoImpresora, setGuardandoImpresora] = useState(false);
+  const [errorImpresora, setErrorImpresora] = useState<string | null>(null);
 
   useEffect(() => {
     obtenerConfiguracion(token)
@@ -40,6 +43,7 @@ export function Configuracion() {
         setConfiguracion(data);
         setTarifaIvaInput(String(data.tarifaIvaPorDefecto));
         setTelefonoAdminInput(data.telefonoNotificacionesAdmin ?? '');
+        setNombreImpresoraInput(data.nombreImpresoraTickets ?? '');
       })
       .catch((err) => {
         setErrorConfiguracion(
@@ -103,9 +107,10 @@ export function Configuracion() {
       const actualizado = await actualizarConfiguracion(
         {
           tarifaIvaPorDefecto: valor,
-          // El PUT reemplaza toda la fila de Configuracion, así que se reenvía el teléfono
-          // vigente para no borrarlo al guardar solo la tarifa.
+          // El PUT reemplaza toda la fila de Configuracion, así que se reenvían los demás
+          // campos vigentes para no borrarlos al guardar solo la tarifa.
           telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
+          nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
         },
         token
       );
@@ -139,6 +144,7 @@ export function Configuracion() {
         {
           tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
           telefonoNotificacionesAdmin: valor === '' ? null : valor,
+          nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
         },
         token
       );
@@ -152,6 +158,35 @@ export function Configuracion() {
       toast.error(mensaje);
     } finally {
       setGuardandoTelefonoAdmin(false);
+    }
+  }
+
+  async function handleGuardarImpresora(e: FormEvent) {
+    e.preventDefault();
+    setErrorImpresora(null);
+
+    const valor = nombreImpresoraInput.trim();
+
+    setGuardandoImpresora(true);
+    try {
+      const actualizado = await actualizarConfiguracion(
+        {
+          tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
+          telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
+          nombreImpresoraTickets: valor === '' ? null : valor,
+        },
+        token
+      );
+      setConfiguracion(actualizado);
+      setNombreImpresoraInput(actualizado.nombreImpresoraTickets ?? '');
+      toast.success('Impresora de tiquetes actualizada correctamente');
+    } catch (err) {
+      const mensaje =
+        err instanceof ApiError ? err.message : 'No se pudo actualizar la impresora de tiquetes.';
+      setErrorImpresora(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setGuardandoImpresora(false);
     }
   }
 
@@ -336,6 +371,62 @@ export function Configuracion() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle className="text-navy">Impresora de tiquetes</CardTitle>
+          <CardDescription>
+            Nombre exacto de la impresora térmica del mostrador, tal como aparece en QZ Tray. Se
+            usa para imprimir la factura y para abrir el cajón de dinero al finalizar una venta en
+            efectivo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {cargandoConfiguracion ? (
+            <div className="flex items-center gap-2 text-sm text-text-muted">
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              Cargando configuración de la impresora...
+            </div>
+          ) : errorConfiguracion ? (
+            <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+              {errorConfiguracion}
+            </div>
+          ) : esAdmin ? (
+            <form onSubmit={handleGuardarImpresora} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="nombreImpresoraTickets">Nombre de la impresora</Label>
+                <Input
+                  id="nombreImpresoraTickets"
+                  placeholder="Ej. POS-80"
+                  value={nombreImpresoraInput}
+                  onChange={(e) => setNombreImpresoraInput(e.target.value)}
+                  className="max-w-xs"
+                />
+                <p className="text-xs text-text-muted">
+                  Déjalo vacío si todavía no se ha instalado QZ Tray en el computador del mostrador.
+                </p>
+              </div>
+
+              {errorImpresora && (
+                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                  {errorImpresora}
+                </div>
+              )}
+
+              <Button type="submit" variant="gold" disabled={guardandoImpresora}>
+                {guardandoImpresora ? 'Guardando...' : 'Guardar impresora'}
+              </Button>
+            </form>
+          ) : (
+            <p className="text-sm text-navy">
+              Impresora configurada:{' '}
+              <span className="font-semibold">
+                {configuracion?.nombreImpresoraTickets ?? 'Ninguna (solo un administrador puede configurarla)'}
+              </span>
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Separator />
 
