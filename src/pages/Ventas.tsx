@@ -64,6 +64,24 @@ function desformatearMiles(valorFormateado: string): string {
   return valorFormateado.replace(/\D/g, '');
 }
 
+// Denominaciones de billetes/monedas más comunes en Colombia, para sugerir con qué "le pagó"
+// el cliente y calcular la vuelta de una — exactamente lo que hace un cajero mentalmente.
+const DENOMINACIONES_COP = [100000, 50000, 20000, 10000, 5000, 2000, 1000];
+
+// Sugiere montos recibidos a partir del total: el total exacto (sin vueltas) y, para cada
+// denominación mayor o igual al total, el primer múltiplo de esa denominación que alcanza a
+// cubrirlo (ej. total $37.000 → sugiere $40.000, $50.000, $100.000). Máximo 4 sugerencias.
+function sugerirMontosRecibidos(total: number): number[] {
+  if (total <= 0) return [];
+  const sugerencias = new Set<number>([total]);
+  for (const denominacion of DENOMINACIONES_COP) {
+    if (sugerencias.size >= 4) break;
+    const redondeado = Math.ceil(total / denominacion) * denominacion;
+    if (redondeado > total) sugerencias.add(redondeado);
+  }
+  return [...sugerencias].sort((a, b) => a - b).slice(0, 4);
+}
+
 const metodosPago: { valor: MetodoPago; etiqueta: string }[] = [
   { valor: 'Efectivo', etiqueta: 'Efectivo' },
   { valor: 'Tarjeta', etiqueta: 'Tarjeta' },
@@ -194,6 +212,23 @@ export function Ventas() {
       clearTimeout(timeoutId);
     };
   }, [modoComprador, clienteId, token]);
+
+  // Autocompleta los datos fiscales con los que ya tiene guardados el cliente encontrado, para
+  // que el cajero no tenga que volver a escribirlos (puede corregirlos para esta venta puntual
+  // si hace falta). Si el cliente no tiene algún campo, ese campo queda vacío para completarlo.
+  useEffect(() => {
+    if (modoComprador !== 'registrado' || !clienteSeleccionado) {
+      if (modoComprador === 'registrado') setDatosFactura(datosFacturaVacio);
+      return;
+    }
+    setDatosFactura({
+      tipoDocumentoFiscal: clienteSeleccionado.tipoDocumentoFiscal ?? '',
+      numeroDocumentoFiscal: clienteSeleccionado.numeroDocumentoFiscal ?? '',
+      razonSocialFiscal: clienteSeleccionado.razonSocialFiscal ?? '',
+      direccionFiscal: clienteSeleccionado.direccionFiscal ?? '',
+      emailFacturacion: clienteSeleccionado.emailFacturacion ?? '',
+    });
+  }, [modoComprador, clienteSeleccionado]);
 
   useEffect(() => {
     obtenerConfiguracion(token)
@@ -877,32 +912,67 @@ export function Ventas() {
             </div>
 
             {metodoPago === 'Efectivo' && (
-              <div className="space-y-2">
-                <Label htmlFor="montoRecibido">Monto recibido</Label>
-                <Input
-                  id="montoRecibido"
-                  type="text"
-                  inputMode="numeric"
-                  value={formatearMiles(montoRecibido)}
-                  onChange={(e) => setMontoRecibido(desformatearMiles(e.target.value))}
-                  disabled={registrando}
-                  required
-                  className={cn(
-                    montoRecibidoValido && montoRecibidoNumero < total && 'border-error-text focus-visible:ring-error-text'
-                  )}
-                />
-                {montoRecibidoValido && (
-                  <p
+              <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-text-muted">Total a cobrar</span>
+                  <span className="font-heading text-xl font-bold text-navy">{formatoMoneda.format(total)}</span>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="montoRecibido">Monto recibido</Label>
+                  <Input
+                    id="montoRecibido"
+                    type="text"
+                    inputMode="numeric"
+                    value={formatearMiles(montoRecibido)}
+                    onChange={(e) => setMontoRecibido(desformatearMiles(e.target.value))}
+                    disabled={registrando}
+                    required
                     className={cn(
-                      'text-sm font-medium',
-                      montoRecibidoNumero < total ? 'text-error-text' : 'text-navy'
+                      'h-12 text-lg font-semibold',
+                      montoRecibidoValido && montoRecibidoNumero < total && 'border-error-text focus-visible:ring-error-text'
                     )}
-                  >
-                    {montoRecibidoNumero < total
-                      ? `Falta ${formatoMoneda.format(total - montoRecibidoNumero)}`
-                      : `Cambio: ${formatoMoneda.format(cambio ?? 0)}`}
-                  </p>
+                  />
+                </div>
+
+                {total > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {sugerirMontosRecibidos(total).map((sugerido) => (
+                      <Button
+                        key={sugerido}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={registrando}
+                        onClick={() => setMontoRecibido(String(sugerido))}
+                      >
+                        {formatoMoneda.format(sugerido)}
+                      </Button>
+                    ))}
+                  </div>
                 )}
+
+                <div
+                  className={cn(
+                    'flex items-center justify-between rounded-md px-3 py-2',
+                    !montoRecibidoValido
+                      ? 'bg-muted text-text-muted'
+                      : montoRecibidoNumero < total
+                        ? 'bg-error-bg text-error-text'
+                        : 'bg-green/10 text-green'
+                  )}
+                >
+                  <span className="text-sm font-medium">
+                    {!montoRecibidoValido ? 'Vueltas' : montoRecibidoNumero < total ? 'Falta' : 'Vueltas (cambio)'}
+                  </span>
+                  <span className="text-xl font-bold">
+                    {!montoRecibidoValido
+                      ? formatoMoneda.format(0)
+                      : montoRecibidoNumero < total
+                        ? formatoMoneda.format(total - montoRecibidoNumero)
+                        : formatoMoneda.format(cambio ?? 0)}
+                  </span>
+                </div>
               </div>
             )}
 
