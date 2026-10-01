@@ -1,7 +1,14 @@
 // Estos tipos deben mantenerse sincronizados manualmente con
 // StockManager.Application/DTOs/VentaDtos.cs en el backend.
 
+import type { TipoDocumentoFiscal } from './clientes';
+
 export type MetodoPago = 'Efectivo' | 'Tarjeta' | 'Transferencia';
+
+// Estado de la solicitud de factura electrónica de una venta (ver Venta.cs / DIAN DEE POS).
+// "NoAplica" = no se solicitó; "Pendiente" = solicitada pero aún no transmitida a un proveedor
+// certificado; "Transmitida"/"Error" quedan reservados para cuando se integre un proveedor real.
+export type EstadoFacturaElectronica = 'NoAplica' | 'Pendiente' | 'Transmitida' | 'Error';
 
 // Método de pago de una venta de mostrador: igual a MetodoPago, más "Mixto" cuando el total
 // se reparte entre varios métodos (ver DetallePagoRequest). "Mixto" nunca es válido como
@@ -39,6 +46,16 @@ export interface RegistrarVentaRequest {
   // Obligatorio (al menos dos líneas, suma exacta al total) cuando metodoPago es "Mixto"; en
   // cualquier otro método no debe enviarse.
   detallesPago?: DetallePagoRequest[];
+  // Si es true, la venta queda marcada para factura electrónica (estado "Pendiente"). Los
+  // campos fiscales de abajo son opcionales: si se omiten, el backend los toma del Cliente
+  // (cuando hay clienteId); solo son obligatorios cuando no hay cliente con esos datos ya
+  // guardados (p. ej. un comprador sin registrar).
+  requiereFacturaElectronica?: boolean;
+  tipoDocumentoFiscal?: TipoDocumentoFiscal | null;
+  numeroDocumentoFiscal?: string | null;
+  razonSocialFiscal?: string | null;
+  direccionFiscal?: string | null;
+  emailFacturacion?: string | null;
 }
 
 export interface DetalleVentaResponse {
@@ -69,6 +86,13 @@ export interface VentaResponse {
   cambio: number | null;
   // Solo tiene elementos cuando metodoPago es "Mixto"; en cualquier otro método viene vacío.
   detallesPago?: DetallePagoResponse[];
+  requiereFacturaElectronica: boolean;
+  estadoFacturaElectronica: EstadoFacturaElectronica;
+  tipoDocumentoFacturado: TipoDocumentoFiscal | null;
+  numeroDocumentoFacturado: string | null;
+  razonSocialFacturada: string | null;
+  direccionFacturada: string | null;
+  emailFacturacion: string | null;
 }
 
 export interface VentaResumenResponse {

@@ -7,11 +7,25 @@ import { ApiError } from '@/services/api';
 import {
   activarCliente,
   actualizarCliente,
+  actualizarDatosFacturacion,
   buscarClientes,
   crearCliente,
   desactivarCliente,
 } from '@/services/clienteService';
-import type { ActualizarClienteRequest, Cliente, CrearClienteRequest } from '@/types/clientes';
+import type {
+  ActualizarClienteRequest,
+  ActualizarDatosFacturacionRequest,
+  Cliente,
+  CrearClienteRequest,
+  TipoDocumentoFiscal,
+} from '@/types/clientes';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +71,34 @@ const formularioVacio: ClienteForm = {
   password: '',
 };
 
+// Datos para factura electrónica: formulario aparte (misma pantalla, sección propia) porque
+// tienen un propósito distinto al de contacto y se guardan con su propio endpoint para un
+// cliente ya existente (ActualizarDatosFacturacionRequest). "" en tipoDocumentoFiscal
+// representa "sin tipo seleccionado" en el <Select>; se traduce a null al guardar.
+interface DatosFacturacionForm {
+  tipoDocumentoFiscal: TipoDocumentoFiscal | '';
+  numeroDocumentoFiscal: string;
+  razonSocialFiscal: string;
+  direccionFiscal: string;
+  emailFacturacion: string;
+}
+
+const datosFacturacionVacio: DatosFacturacionForm = {
+  tipoDocumentoFiscal: '',
+  numeroDocumentoFiscal: '',
+  razonSocialFiscal: '',
+  direccionFiscal: '',
+  emailFacturacion: '',
+};
+
+const tiposDocumentoFiscal: { valor: TipoDocumentoFiscal; etiqueta: string }[] = [
+  { valor: 'CC', etiqueta: 'Cédula de ciudadanía' },
+  { valor: 'NIT', etiqueta: 'NIT' },
+  { valor: 'CE', etiqueta: 'Cédula de extranjería' },
+  { valor: 'Pasaporte', etiqueta: 'Pasaporte' },
+  { valor: 'Otro', etiqueta: 'Otro' },
+];
+
 export function Clientes() {
   const { token } = useAuth();
 
@@ -68,6 +110,7 @@ export function Clientes() {
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [formulario, setFormulario] = useState<ClienteForm>(formularioVacio);
+  const [datosFacturacion, setDatosFacturacion] = useState<DatosFacturacionForm>(datosFacturacionVacio);
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
@@ -107,6 +150,7 @@ export function Clientes() {
   function abrirDialogNuevo() {
     setClienteEditando(null);
     setFormulario(formularioVacio);
+    setDatosFacturacion(datosFacturacionVacio);
     setErrorFormulario(null);
     setDialogAbierto(true);
   }
@@ -120,6 +164,13 @@ export function Clientes() {
       telefono: cliente.telefono,
       direccion: cliente.direccion,
       password: '',
+    });
+    setDatosFacturacion({
+      tipoDocumentoFiscal: cliente.tipoDocumentoFiscal ?? '',
+      numeroDocumentoFiscal: cliente.numeroDocumentoFiscal ?? '',
+      razonSocialFiscal: cliente.razonSocialFiscal ?? '',
+      direccionFiscal: cliente.direccionFiscal ?? '',
+      emailFacturacion: cliente.emailFacturacion ?? '',
     });
     setErrorFormulario(null);
     setDialogAbierto(true);
@@ -147,6 +198,14 @@ export function Clientes() {
 
     setGuardando(true);
     try {
+      const datosFacturacionRequest: ActualizarDatosFacturacionRequest = {
+        tipoDocumentoFiscal: datosFacturacion.tipoDocumentoFiscal || null,
+        numeroDocumentoFiscal: datosFacturacion.numeroDocumentoFiscal.trim() || null,
+        razonSocialFiscal: datosFacturacion.razonSocialFiscal.trim() || null,
+        direccionFiscal: datosFacturacion.direccionFiscal.trim() || null,
+        emailFacturacion: datosFacturacion.emailFacturacion.trim() || null,
+      };
+
       if (clienteEditando) {
         const data: ActualizarClienteRequest = {
           nombre: formulario.nombre.trim(),
@@ -155,6 +214,10 @@ export function Clientes() {
           direccion: formulario.direccion.trim(),
         };
         await actualizarCliente(clienteEditando.id, data, token);
+        // Los datos fiscales van en su propio endpoint/petición: son un propósito distinto
+        // al de contacto (ver ActualizarDatosFacturacionRequest), aunque en esta pantalla se
+        // editen juntos en un solo formulario por comodidad del usuario.
+        await actualizarDatosFacturacion(clienteEditando.id, datosFacturacionRequest, token);
         toast.success('Cliente actualizado correctamente');
       } else {
         const data: CrearClienteRequest = {
@@ -164,6 +227,7 @@ export function Clientes() {
           telefono: formulario.telefono.trim(),
           direccion: formulario.direccion.trim(),
           password: formulario.password.trim() || null,
+          ...datosFacturacionRequest,
         };
         const resultado = await crearCliente(data, token);
         toast.success(`Cliente "${resultado.cliente.nombre}" creado correctamente`);
@@ -259,19 +323,20 @@ export function Clientes() {
                 <TableHead>Identificación</TableHead>
                 <TableHead>Teléfono</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Origen</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {cargando ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
                   </TableCell>
                 </TableRow>
               ) : clientesVisibles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
                     No hay clientes registrados.
                   </TableCell>
                 </TableRow>
@@ -289,6 +354,9 @@ export function Clientes() {
                       <TableCell className="text-navy">{cliente.numeroIdentificacion}</TableCell>
                       <TableCell className="text-navy">{cliente.telefono}</TableCell>
                       <TableCell className="text-text-muted">{cliente.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{cliente.origenRegistro === 'Pwa' ? 'PWA' : 'Caja'}</Badge>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
                           <Button
@@ -398,6 +466,80 @@ export function Clientes() {
                 onChange={(e) => actualizarCampoFormulario('direccion', e.target.value)}
                 required
               />
+            </div>
+
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-navy">Datos para factura electrónica</p>
+                <p className="text-xs text-text-muted">
+                  Opcionales. Se usan cuando este cliente pida factura electrónica en una venta;
+                  no se piden de nuevo si ya están completos acá.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="tipoDocumentoFiscal">Tipo de documento</Label>
+                  <Select
+                    value={datosFacturacion.tipoDocumentoFiscal}
+                    onValueChange={(valor) =>
+                      setDatosFacturacion((previo) => ({ ...previo, tipoDocumentoFiscal: valor as TipoDocumentoFiscal }))
+                    }
+                  >
+                    <SelectTrigger id="tipoDocumentoFiscal">
+                      <SelectValue placeholder="Sin especificar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tiposDocumentoFiscal.map((tipo) => (
+                        <SelectItem key={tipo.valor} value={tipo.valor}>
+                          {tipo.etiqueta}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="numeroDocumentoFiscal">Número de documento</Label>
+                  <Input
+                    id="numeroDocumentoFiscal"
+                    value={datosFacturacion.numeroDocumentoFiscal}
+                    onChange={(e) =>
+                      setDatosFacturacion((previo) => ({ ...previo, numeroDocumentoFiscal: e.target.value }))
+                    }
+                    placeholder="Ej. NIT con dígito de verificación"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="razonSocialFiscal">Razón social</Label>
+                <Input
+                  id="razonSocialFiscal"
+                  value={datosFacturacion.razonSocialFiscal}
+                  onChange={(e) => setDatosFacturacion((previo) => ({ ...previo, razonSocialFiscal: e.target.value }))}
+                  placeholder="Nombre o razón social a facturar"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="direccionFiscal">Dirección fiscal</Label>
+                  <Input
+                    id="direccionFiscal"
+                    value={datosFacturacion.direccionFiscal}
+                    onChange={(e) => setDatosFacturacion((previo) => ({ ...previo, direccionFiscal: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emailFacturacion">Correo de facturación</Label>
+                  <Input
+                    id="emailFacturacion"
+                    type="email"
+                    value={datosFacturacion.emailFacturacion}
+                    onChange={(e) => setDatosFacturacion((previo) => ({ ...previo, emailFacturacion: e.target.value }))}
+                  />
+                </div>
+              </div>
             </div>
 
             {!clienteEditando && (

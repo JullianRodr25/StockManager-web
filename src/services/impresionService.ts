@@ -135,6 +135,14 @@ function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquet
     lineas.push(`Metodo de pago: ${venta.metodoPago}\n`);
   }
 
+  if (venta.requiereFacturaElectronica) {
+    lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+    lineas.push('Factura electronica solicitada\n');
+    if (venta.estadoFacturaElectronica === 'Pendiente') {
+      lineas.push('Pendiente de envio a la DIAN\n');
+    }
+  }
+
   lineas.push('\n');
   lineas.push(ESC + 'a' + '\x01');
   lineas.push('Gracias por su compra\n');

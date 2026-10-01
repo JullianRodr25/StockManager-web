@@ -8,13 +8,16 @@ import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon } from '@/services/impresionService';
 import { obtenerProductos } from '@/services/inventarioService';
 import { registrarVenta } from '@/services/ventaService';
+import { crearCliente, obtenerClientePorId } from '@/services/clienteService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import type { Producto } from '@/types/inventario';
 import type { MetodoPago, MetodoPagoVenta, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
+import type { Cliente, TipoDocumentoFiscal } from '@/types/clientes';
 import { BuscadorProductos } from '@/components/BuscadorProductos';
 import { DetalleFacturaDialog } from '@/components/DetalleFacturaDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -72,6 +75,33 @@ const metodosPagoVenta: { valor: MetodoPagoVenta; etiqueta: string }[] = [
   { valor: 'Mixto', etiqueta: 'Mixto (varios métodos)' },
 ];
 
+const tiposDocumentoFiscal: { valor: TipoDocumentoFiscal; etiqueta: string }[] = [
+  { valor: 'CC', etiqueta: 'Cédula de ciudadanía' },
+  { valor: 'NIT', etiqueta: 'NIT' },
+  { valor: 'CE', etiqueta: 'Cédula de extranjería' },
+  { valor: 'Pasaporte', etiqueta: 'Pasaporte' },
+  { valor: 'Otro', etiqueta: 'Otro' },
+];
+
+// Datos fiscales que se piden solo cuando hace falta: para un cliente ya registrado que no
+// tiene su perfil completo, o para registrar en el momento a un comprador sin registrar que
+// pide factura electrónica (ver RegistrarVentaRequest/CrearClienteRequest en el backend).
+interface DatosFacturaForm {
+  tipoDocumentoFiscal: TipoDocumentoFiscal | '';
+  numeroDocumentoFiscal: string;
+  razonSocialFiscal: string;
+  direccionFiscal: string;
+  emailFacturacion: string;
+}
+
+const datosFacturaVacio: DatosFacturaForm = {
+  tipoDocumentoFiscal: '',
+  numeroDocumentoFiscal: '',
+  razonSocialFiscal: '',
+  direccionFiscal: '',
+  emailFacturacion: '',
+};
+
 // Dos líneas vacías por defecto: un pago "Mixto" no tiene sentido con menos de dos métodos.
 const lineasDesgloseIniciales = (): { metodoPago: MetodoPago | ''; monto: string }[] => [
   { metodoPago: '', monto: '' },
@@ -114,6 +144,17 @@ export function Ventas() {
   const [montoRecibido, setMontoRecibido] = useState('');
   const [desglosePago, setDesglosePago] = useState(lineasDesgloseIniciales());
 
+  // --- Factura electrónica ---
+  const [requiereFacturaElectronica, setRequiereFacturaElectronica] = useState(false);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+  const [buscandoCliente, setBuscandoCliente] = useState(false);
+  // Solo se piden cuando un comprador sin registrar marca "Solicitar factura electrónica":
+  // en ese caso hay que registrarlo como Cliente (ver Cliente.Crear, que exige estos datos),
+  // no solo guardar un nombre suelto en la venta.
+  const [direccionComprador, setDireccionComprador] = useState('');
+  const [numeroIdentificacionComprador, setNumeroIdentificacionComprador] = useState('');
+  const [datosFactura, setDatosFactura] = useState<DatosFacturaForm>(datosFacturaVacio);
+
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [conflictoStock, setConflictoStock] = useState<string | null>(null);
   const [registrando, setRegistrando] = useState(false);
@@ -124,6 +165,35 @@ export function Ventas() {
 
   const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
   const [abriendoCajon, setAbriendoCajon] = useState(false);
+
+  // Al escribir un ID de cliente válido en modo "Cliente registrado", lo busca para confirmar
+  // quién es y para saber si ya tiene datos fiscales completos (y así ofrecer "Solicitar
+  // factura electrónica" con un clic, sin tener que volver a pedirlos).
+  useEffect(() => {
+    if (modoComprador !== 'registrado' || !clienteId.trim() || !Number.isInteger(Number(clienteId))) {
+      setClienteSeleccionado(null);
+      return;
+    }
+    let cancelado = false;
+    setBuscandoCliente(true);
+    const idBuscado = Number(clienteId);
+    const timeoutId = setTimeout(() => {
+      obtenerClientePorId(idBuscado, token)
+        .then((cliente) => {
+          if (!cancelado) setClienteSeleccionado(cliente);
+        })
+        .catch(() => {
+          if (!cancelado) setClienteSeleccionado(null);
+        })
+        .finally(() => {
+          if (!cancelado) setBuscandoCliente(false);
+        });
+    }, 400);
+    return () => {
+      cancelado = true;
+      clearTimeout(timeoutId);
+    };
+  }, [modoComprador, clienteId, token]);
 
   useEffect(() => {
     obtenerConfiguracion(token)
@@ -283,6 +353,11 @@ export function Ventas() {
     setMetodoPago(estadoInicialComprador.metodoPago);
     setMontoRecibido('');
     setDesglosePago(lineasDesgloseIniciales());
+    setRequiereFacturaElectronica(false);
+    setClienteSeleccionado(null);
+    setDireccionComprador('');
+    setNumeroIdentificacionComprador('');
+    setDatosFactura(datosFacturaVacio);
     setErrorFormulario(null);
     setConflictoStock(null);
     setDialogFinalizarAbierto(false);
@@ -328,15 +403,73 @@ export function Ventas() {
       return;
     }
 
+    const datosFacturaCompletos =
+      datosFactura.tipoDocumentoFiscal !== '' &&
+      datosFactura.numeroDocumentoFiscal.trim() !== '' &&
+      datosFactura.razonSocialFiscal.trim() !== '';
+    const clienteTieneDatosFiscales = clienteSeleccionado?.tieneDatosFacturacionElectronicaCompletos ?? false;
+
+    if (requiereFacturaElectronica) {
+      if (modoComprador === 'registrado' && !clienteTieneDatosFiscales && !datosFacturaCompletos) {
+        setErrorFormulario(
+          'Para solicitar factura electrónica, completa tipo y número de documento fiscal, y la razón social.'
+        );
+        return;
+      }
+      if (modoComprador === 'sinRegistro') {
+        if (!numeroIdentificacionComprador.trim() || !telefonoComprador.trim() || !emailComprador.trim() || !direccionComprador.trim()) {
+          setErrorFormulario(
+            'Para registrar al comprador y solicitar factura electrónica, completa identificación, teléfono, correo y dirección.'
+          );
+          return;
+        }
+        if (!datosFacturaCompletos) {
+          setErrorFormulario(
+            'Completa tipo y número de documento fiscal, y la razón social, para solicitar factura electrónica.'
+          );
+          return;
+        }
+      }
+    }
+
+    // Un comprador sin registrar que pide factura electrónica queda registrado como Cliente
+    // (origen "Caja") en este mismo momento, con sus datos fiscales ya guardados en el
+    // perfil — así la próxima vez que compre no hay que volver a pedírselos.
+    let clienteIdParaVenta = modoComprador === 'registrado' ? Number(clienteId) : undefined;
+    if (modoComprador === 'sinRegistro' && requiereFacturaElectronica) {
+      try {
+        const clienteCreado = await crearCliente(
+          {
+            numeroIdentificacion: numeroIdentificacionComprador.trim(),
+            nombre: nombreComprador.trim(),
+            email: emailComprador.trim(),
+            telefono: telefonoComprador.trim(),
+            direccion: direccionComprador.trim(),
+            password: null,
+            tipoDocumentoFiscal: datosFactura.tipoDocumentoFiscal || null,
+            numeroDocumentoFiscal: datosFactura.numeroDocumentoFiscal.trim() || null,
+            razonSocialFiscal: datosFactura.razonSocialFiscal.trim() || null,
+            direccionFiscal: datosFactura.direccionFiscal.trim() || null,
+            emailFacturacion: datosFactura.emailFacturacion.trim() || null,
+          },
+          token
+        );
+        clienteIdParaVenta = clienteCreado.cliente.id;
+      } catch (err) {
+        setErrorFormulario(err instanceof ApiError ? err.message : 'No se pudo registrar al comprador.');
+        return;
+      }
+    }
+
     const solicitud: RegistrarVentaRequest = {
-      ...(modoComprador === 'registrado' ? { clienteId: Number(clienteId) } : {}),
-      ...(modoComprador === 'sinRegistro' && nombreComprador.trim()
+      ...(clienteIdParaVenta !== undefined ? { clienteId: clienteIdParaVenta } : {}),
+      ...(modoComprador === 'sinRegistro' && !requiereFacturaElectronica && nombreComprador.trim()
         ? { nombreComprador: nombreComprador.trim() }
         : {}),
-      ...(modoComprador === 'sinRegistro' && telefonoComprador.trim()
+      ...(modoComprador === 'sinRegistro' && !requiereFacturaElectronica && telefonoComprador.trim()
         ? { telefonoComprador: telefonoComprador.trim() }
         : {}),
-      ...(modoComprador === 'sinRegistro' && emailComprador.trim()
+      ...(modoComprador === 'sinRegistro' && !requiereFacturaElectronica && emailComprador.trim()
         ? { emailComprador: emailComprador.trim() }
         : {}),
       metodoPago,
@@ -353,6 +486,23 @@ export function Ventas() {
         productoId: linea.productoId,
         cantidad: Number(linea.cantidad),
       })),
+      ...(requiereFacturaElectronica
+        ? {
+            requiereFacturaElectronica: true,
+            // Si el cliente registrado ya tiene datos fiscales completos, no hace falta
+            // reenviarlos: VentaService los completa desde su perfil. Si no, o si es un
+            // comprador recién registrado, van estos (ya guardados también en su perfil).
+            ...(!clienteTieneDatosFiscales && datosFacturaCompletos
+              ? {
+                  tipoDocumentoFiscal: datosFactura.tipoDocumentoFiscal || null,
+                  numeroDocumentoFiscal: datosFactura.numeroDocumentoFiscal.trim() || null,
+                  razonSocialFiscal: datosFactura.razonSocialFiscal.trim() || null,
+                  direccionFiscal: datosFactura.direccionFiscal.trim() || null,
+                  emailFacturacion: datosFactura.emailFacturacion.trim() || null,
+                }
+              : {}),
+          }
+        : {}),
     };
 
     registroEnCursoRef.current = true;
@@ -540,6 +690,20 @@ export function Ventas() {
                   disabled={registrando}
                   required
                 />
+                {buscandoCliente && (
+                  <p className="text-sm text-muted-foreground">Buscando cliente...</p>
+                )}
+                {!buscandoCliente && clienteSeleccionado && (
+                  <p className="text-sm text-muted-foreground">
+                    {clienteSeleccionado.nombre}
+                    {clienteSeleccionado.tieneDatosFacturacionElectronicaCompletos
+                      ? ' · Datos fiscales completos'
+                      : ' · Sin datos fiscales completos'}
+                  </p>
+                )}
+                {!buscandoCliente && !clienteSeleccionado && clienteId.trim() !== '' && (
+                  <p className="text-sm text-error-text">No se encontró un cliente con ese ID.</p>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -555,27 +719,146 @@ export function Ventas() {
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="telefonoComprador">Teléfono (opcional)</Label>
+                    <Label htmlFor="telefonoComprador">
+                      Teléfono {requiereFacturaElectronica ? '' : '(opcional)'}
+                    </Label>
                     <Input
                       id="telefonoComprador"
                       value={telefonoComprador}
                       onChange={(e) => setTelefonoComprador(e.target.value)}
                       disabled={registrando}
+                      required={requiereFacturaElectronica}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="emailComprador">Correo (opcional)</Label>
+                    <Label htmlFor="emailComprador">
+                      Correo {requiereFacturaElectronica ? '' : '(opcional)'}
+                    </Label>
                     <Input
                       id="emailComprador"
                       type="email"
                       value={emailComprador}
                       onChange={(e) => setEmailComprador(e.target.value)}
                       disabled={registrando}
+                      required={requiereFacturaElectronica}
                     />
                   </div>
                 </div>
+                {requiereFacturaElectronica && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="numeroIdentificacionComprador">Número de identificación</Label>
+                      <Input
+                        id="numeroIdentificacionComprador"
+                        value={numeroIdentificacionComprador}
+                        onChange={(e) => setNumeroIdentificacionComprador(e.target.value)}
+                        disabled={registrando}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="direccionComprador">Dirección</Label>
+                      <Input
+                        id="direccionComprador"
+                        value={direccionComprador}
+                        onChange={(e) => setDireccionComprador(e.target.value)}
+                        disabled={registrando}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+
+            <div className="flex items-start gap-2 rounded-md border border-border p-3">
+              <Checkbox
+                id="requiereFacturaElectronica"
+                checked={requiereFacturaElectronica}
+                onCheckedChange={(valor) => setRequiereFacturaElectronica(valor === true)}
+                disabled={registrando}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="requiereFacturaElectronica" className="cursor-pointer">
+                  Solicitar factura electrónica
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {modoComprador === 'sinRegistro'
+                    ? 'El comprador quedará registrado como cliente con estos datos.'
+                    : 'Queda pendiente de envío a la DIAN; no se transmite automáticamente.'}
+                </p>
+              </div>
+            </div>
+
+            {requiereFacturaElectronica &&
+              (modoComprador === 'sinRegistro' || !clienteSeleccionado?.tieneDatosFacturacionElectronicaCompletos) && (
+                <div className="space-y-3 rounded-md border border-border p-3">
+                  <p className="text-sm font-medium text-navy">Datos para factura electrónica</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="tipoDocumentoFiscalVenta">Tipo de documento</Label>
+                      <Select
+                        value={datosFactura.tipoDocumentoFiscal}
+                        onValueChange={(valor) =>
+                          setDatosFactura((previo) => ({ ...previo, tipoDocumentoFiscal: valor as TipoDocumentoFiscal }))
+                        }
+                      >
+                        <SelectTrigger id="tipoDocumentoFiscalVenta" disabled={registrando}>
+                          <SelectValue placeholder="Selecciona un tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tiposDocumentoFiscal.map((tipo) => (
+                            <SelectItem key={tipo.valor} value={tipo.valor}>
+                              {tipo.etiqueta}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="numeroDocumentoFiscalVenta">Número de documento</Label>
+                      <Input
+                        id="numeroDocumentoFiscalVenta"
+                        value={datosFactura.numeroDocumentoFiscal}
+                        onChange={(e) =>
+                          setDatosFactura((previo) => ({ ...previo, numeroDocumentoFiscal: e.target.value }))
+                        }
+                        disabled={registrando}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="razonSocialFiscalVenta">Razón social / nombre completo</Label>
+                    <Input
+                      id="razonSocialFiscalVenta"
+                      value={datosFactura.razonSocialFiscal}
+                      onChange={(e) => setDatosFactura((previo) => ({ ...previo, razonSocialFiscal: e.target.value }))}
+                      disabled={registrando}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="direccionFiscalVenta">Dirección fiscal (opcional)</Label>
+                      <Input
+                        id="direccionFiscalVenta"
+                        value={datosFactura.direccionFiscal}
+                        onChange={(e) => setDatosFactura((previo) => ({ ...previo, direccionFiscal: e.target.value }))}
+                        disabled={registrando}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emailFacturacionVenta">Correo de facturación (opcional)</Label>
+                      <Input
+                        id="emailFacturacionVenta"
+                        type="email"
+                        value={datosFactura.emailFacturacion}
+                        onChange={(e) => setDatosFactura((previo) => ({ ...previo, emailFacturacion: e.target.value }))}
+                        disabled={registrando}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
             <div className="space-y-2">
               <Label htmlFor="metodoPago">Método de pago</Label>

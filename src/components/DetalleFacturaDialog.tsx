@@ -166,6 +166,27 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
                 </div>
               </div>
 
+              {venta.requiereFacturaElectronica && (
+                <div className="flex flex-col gap-1 rounded-md border border-gold bg-gold/10 px-3 py-2 text-sm text-navy">
+                  <p className="font-semibold">
+                    Factura electrónica solicitada
+                    {venta.estadoFacturaElectronica === 'Pendiente' && ' — pendiente de envío a la DIAN'}
+                    {venta.estadoFacturaElectronica === 'Transmitida' && ' — transmitida a la DIAN'}
+                    {venta.estadoFacturaElectronica === 'Error' && ' — error al transmitir a la DIAN'}
+                  </p>
+                  {(venta.tipoDocumentoFacturado || venta.numeroDocumentoFacturado || venta.razonSocialFacturada) && (
+                    <p className="text-text-muted">
+                      {venta.razonSocialFacturada}
+                      {venta.tipoDocumentoFacturado && venta.numeroDocumentoFacturado
+                        ? ` · ${venta.tipoDocumentoFacturado} ${venta.numeroDocumentoFacturado}`
+                        : ''}
+                    </p>
+                  )}
+                  {venta.direccionFacturada && <p className="text-text-muted">{venta.direccionFacturada}</p>}
+                  {venta.emailFacturacion && <p className="text-text-muted">{venta.emailFacturacion}</p>}
+                </div>
+              )}
+
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>

@@ -1,6 +1,7 @@
 import { apiRequest } from './api';
 import type {
   ActualizarClienteRequest,
+  ActualizarDatosFacturacionRequest,
   Cliente,
   ClienteCreadoResponse,
   CrearClienteRequest,
@@ -46,6 +47,18 @@ export async function actualizarCliente(
   token: string | null
 ): Promise<Cliente> {
   return apiRequest<Cliente>(`/api/clientes/${id}`, {
+    method: 'PUT',
+    body: data,
+    token,
+  });
+}
+
+export async function actualizarDatosFacturacion(
+  id: number,
+  data: ActualizarDatosFacturacionRequest,
+  token: string | null
+): Promise<Cliente> {
+  return apiRequest<Cliente>(`/api/clientes/${id}/datos-facturacion`, {
     method: 'PUT',
     body: data,
     token,
