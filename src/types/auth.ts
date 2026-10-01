@@ -20,3 +20,16 @@ export interface EmpleadoAutenticado {
 export interface ApiErrorResponse {
   message: string;
 }
+
+export interface SolicitarRecuperacionRequest {
+  email: string;
+}
+
+export interface RestablecerContrasenaRequest {
+  token: string;
+  nuevaPassword: string;
+}
+
+export interface MensajeResponse {
+  message: string;
+}

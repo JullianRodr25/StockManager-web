@@ -6,6 +6,8 @@ import { StockRealtimeProvider } from './context/StockRealtimeContext';
 import { RutaProtegida } from './components/RutaProtegida';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
+import { OlvideContrasena } from './pages/OlvideContrasena';
+import { RestablecerContrasena } from './pages/RestablecerContrasena';
 import { Dashboard } from './pages/Dashboard';
 import { Inventario } from './pages/Inventario';
 import { EtiquetasPendientes } from './pages/EtiquetasPendientes';
@@ -30,6 +32,8 @@ function App() {
               <Toaster position="top-right" richColors />
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/olvide-contrasena" element={<OlvideContrasena />} />
+                <Route path="/restablecer-contrasena" element={<RestablecerContrasena />} />
                 <Route
                   element={
                     <RutaProtegida>

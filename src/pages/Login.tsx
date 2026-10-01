@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useLogo } from '../context/LogoContext';
@@ -85,6 +85,9 @@ export function Login() {
                   autoComplete="current-password"
                   required
                 />
+                <Link to="/olvide-contrasena" className="block text-right text-xs text-gold hover:underline">
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
 
               {error && (
