@@ -10,7 +10,7 @@ import { obtenerProductos } from '@/services/inventarioService';
 import { registrarVenta } from '@/services/ventaService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import type { Producto } from '@/types/inventario';
-import type { MetodoPago, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
+import type { MetodoPago, MetodoPagoVenta, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
 import { BuscadorProductos } from '@/components/BuscadorProductos';
 import { DetalleFacturaDialog } from '@/components/DetalleFacturaDialog';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,17 @@ const metodosPago: { valor: MetodoPago; etiqueta: string }[] = [
   { valor: 'Transferencia', etiqueta: 'Transferencia' },
 ];
 
+const metodosPagoVenta: { valor: MetodoPagoVenta; etiqueta: string }[] = [
+  ...metodosPago,
+  { valor: 'Mixto', etiqueta: 'Mixto (varios métodos)' },
+];
+
+// Dos líneas vacías por defecto: un pago "Mixto" no tiene sentido con menos de dos métodos.
+const lineasDesgloseIniciales = (): { metodoPago: MetodoPago | ''; monto: string }[] => [
+  { metodoPago: '', monto: '' },
+  { metodoPago: '', monto: '' },
+];
+
 type ModoComprador = 'registrado' | 'sinRegistro';
 
 interface LineaCarrito {
@@ -63,7 +74,7 @@ const estadoInicialComprador = {
   nombreComprador: '',
   telefonoComprador: '',
   emailComprador: '',
-  metodoPago: '' as MetodoPago | '',
+  metodoPago: '' as MetodoPagoVenta | '',
 };
 
 export function Ventas() {
@@ -81,8 +92,9 @@ export function Ventas() {
   const [nombreComprador, setNombreComprador] = useState(estadoInicialComprador.nombreComprador);
   const [telefonoComprador, setTelefonoComprador] = useState(estadoInicialComprador.telefonoComprador);
   const [emailComprador, setEmailComprador] = useState(estadoInicialComprador.emailComprador);
-  const [metodoPago, setMetodoPago] = useState<MetodoPago | ''>(estadoInicialComprador.metodoPago);
+  const [metodoPago, setMetodoPago] = useState<MetodoPagoVenta | ''>(estadoInicialComprador.metodoPago);
   const [montoRecibido, setMontoRecibido] = useState('');
+  const [desglosePago, setDesglosePago] = useState(lineasDesgloseIniciales());
 
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [conflictoStock, setConflictoStock] = useState<string | null>(null);
@@ -162,6 +174,31 @@ export function Ventas() {
   const montoRecibidoValido = montoRecibido.trim() !== '' && Number.isFinite(montoRecibidoNumero);
   const cambio = montoRecibidoValido ? montoRecibidoNumero - total : null;
 
+  // Un pago "Mixto" se valida contra el total con el mismo criterio exacto que exige el
+  // backend (Venta.ValidarDetallesPago): al menos dos líneas, cada una con método y monto
+  // válidos, y la suma exactamente igual al total — sin tolerancia.
+  const sumaDesglose = desglosePago.reduce((acumulado, linea) => acumulado + (Number(linea.monto) || 0), 0);
+  const diferenciaDesglose = total - sumaDesglose;
+  const desgloseCuadra = Math.abs(diferenciaDesglose) < 0.005;
+  const lineasDesgloseValidas = desglosePago.every(
+    (linea) => linea.metodoPago !== '' && Number(linea.monto) > 0
+  );
+  const desgloseValido = desglosePago.length >= 2 && lineasDesgloseValidas && desgloseCuadra;
+
+  function actualizarLineaDesglose(indice: number, campo: 'metodoPago' | 'monto', valor: string) {
+    setDesglosePago((actual) =>
+      actual.map((linea, i) => (i === indice ? { ...linea, [campo]: valor } : linea))
+    );
+  }
+
+  function agregarLineaDesglose() {
+    setDesglosePago((actual) => [...actual, { metodoPago: '', monto: '' }]);
+  }
+
+  function quitarLineaDesglose(indice: number) {
+    setDesglosePago((actual) => actual.filter((_, i) => i !== indice));
+  }
+
   // Validación de UX: evita agregar o escribir más unidades de las
   // que el producto tiene en stock. Esto NO reemplaza la validación
   // real del backend, que sigue siendo la fuente de verdad: por
@@ -227,6 +264,7 @@ export function Ventas() {
     setEmailComprador(estadoInicialComprador.emailComprador);
     setMetodoPago(estadoInicialComprador.metodoPago);
     setMontoRecibido('');
+    setDesglosePago(lineasDesgloseIniciales());
     setErrorFormulario(null);
     setConflictoStock(null);
     setDialogFinalizarAbierto(false);
@@ -255,6 +293,14 @@ export function Ventas() {
       setErrorFormulario('Ingresa el monto recibido en efectivo; debe ser al menos el total de la venta.');
       return;
     }
+    if (metodoPago === 'Mixto' && !desgloseValido) {
+      setErrorFormulario(
+        desglosePago.length < 2 || !lineasDesgloseValidas
+          ? 'Completa al menos dos métodos de pago con su monto.'
+          : 'La suma del desglose debe ser igual al total de la venta.'
+      );
+      return;
+    }
     if (modoComprador === 'registrado' && (!Number.isInteger(Number(clienteId)) || Number(clienteId) <= 0)) {
       setErrorFormulario('Ingresa un ID de cliente válido.');
       return;
@@ -277,6 +323,14 @@ export function Ventas() {
         : {}),
       metodoPago,
       ...(metodoPago === 'Efectivo' ? { montoRecibido: montoRecibidoNumero } : {}),
+      ...(metodoPago === 'Mixto'
+        ? {
+            detallesPago: desglosePago.map((linea) => ({
+              metodoPago: linea.metodoPago as MetodoPago,
+              monto: Number(linea.monto),
+            })),
+          }
+        : {}),
       lineas: carritoConDatos.map((linea) => ({
         productoId: linea.productoId,
         cantidad: Number(linea.cantidad),
@@ -507,12 +561,12 @@ export function Ventas() {
 
             <div className="space-y-2">
               <Label htmlFor="metodoPago">Método de pago</Label>
-              <Select value={metodoPago} onValueChange={(valor) => setMetodoPago(valor as MetodoPago)}>
+              <Select value={metodoPago} onValueChange={(valor) => setMetodoPago(valor as MetodoPagoVenta)}>
                 <SelectTrigger id="metodoPago" disabled={registrando}>
                   <SelectValue placeholder="Selecciona un método" />
                 </SelectTrigger>
                 <SelectContent>
-                  {metodosPago.map((metodo) => (
+                  {metodosPagoVenta.map((metodo) => (
                     <SelectItem key={metodo.valor} value={metodo.valor}>
                       {metodo.etiqueta}
                     </SelectItem>
@@ -549,6 +603,65 @@ export function Ventas() {
                       : `Cambio: ${formatoMoneda.format(cambio ?? 0)}`}
                   </p>
                 )}
+              </div>
+            )}
+
+            {metodoPago === 'Mixto' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Desglose del pago</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={agregarLineaDesglose} disabled={registrando}>
+                    Agregar método
+                  </Button>
+                </div>
+
+                {desglosePago.map((linea, indice) => (
+                  <div key={indice} className="flex items-center gap-2">
+                    <Select
+                      value={linea.metodoPago}
+                      onValueChange={(valor) => actualizarLineaDesglose(indice, 'metodoPago', valor)}
+                    >
+                      <SelectTrigger disabled={registrando} className="w-36 shrink-0" aria-label="Método de pago">
+                        <SelectValue placeholder="Método" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {metodosPago.map((metodo) => (
+                          <SelectItem key={metodo.valor} value={metodo.valor}>
+                            {metodo.etiqueta}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={linea.monto}
+                      onChange={(e) => actualizarLineaDesglose(indice, 'monto', e.target.value)}
+                      disabled={registrando}
+                      placeholder="Monto"
+                      aria-label="Monto de la línea"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Quitar línea del desglose"
+                      onClick={() => quitarLineaDesglose(indice)}
+                      disabled={registrando || desglosePago.length <= 2}
+                    >
+                      <Trash2 className="h-4 w-4 text-error-text" />
+                    </Button>
+                  </div>
+                ))}
+
+                <p className={cn('text-sm font-medium', desgloseCuadra ? 'text-navy' : 'text-error-text')}>
+                  {desgloseCuadra
+                    ? 'El desglose cuadra con el total.'
+                    : diferenciaDesglose > 0
+                      ? `Falta ${formatoMoneda.format(diferenciaDesglose)}`
+                      : `Sobra ${formatoMoneda.format(-diferenciaDesglose)}`}
+                </p>
               </div>
             )}
 

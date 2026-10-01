@@ -3,9 +3,27 @@
 
 export type MetodoPago = 'Efectivo' | 'Tarjeta' | 'Transferencia';
 
+// Método de pago de una venta de mostrador: igual a MetodoPago, más "Mixto" cuando el total
+// se reparte entre varios métodos (ver DetallePagoRequest). "Mixto" nunca es válido como
+// método de una línea individual del desglose — por eso se mantiene separado de MetodoPago.
+export type MetodoPagoVenta = MetodoPago | 'Mixto';
+
 export interface LineaVentaRequest {
   productoId: number;
   cantidad: number;
+}
+
+// Una línea del desglose de un pago "Mixto": cuánto de la venta se pagó con este método
+// individual. Solo se envía cuando metodoPago es "Mixto"; la suma de todas las líneas debe
+// ser exactamente igual al total de la venta (el backend lo valida sin tolerancia).
+export interface DetallePagoRequest {
+  metodoPago: MetodoPago;
+  monto: number;
+}
+
+export interface DetallePagoResponse {
+  metodoPago: string;
+  monto: number;
 }
 
 export interface RegistrarVentaRequest {
@@ -13,11 +31,14 @@ export interface RegistrarVentaRequest {
   nombreComprador?: string | null;
   telefonoComprador?: string | null;
   emailComprador?: string | null;
-  metodoPago: MetodoPago;
+  metodoPago: MetodoPagoVenta;
   lineas: LineaVentaRequest[];
   // Obligatorio (y validado contra el total) cuando metodoPago es "Efectivo"; en cualquier
   // otro método el backend lo ignora y siempre queda null.
   montoRecibido?: number | null;
+  // Obligatorio (al menos dos líneas, suma exacta al total) cuando metodoPago es "Mixto"; en
+  // cualquier otro método no debe enviarse.
+  detallesPago?: DetallePagoRequest[];
 }
 
 export interface DetalleVentaResponse {
@@ -46,6 +67,8 @@ export interface VentaResponse {
   detalles: DetalleVentaResponse[];
   montoRecibido: number | null;
   cambio: number | null;
+  // Solo tiene elementos cuando metodoPago es "Mixto"; en cualquier otro método viene vacío.
+  detallesPago?: DetallePagoResponse[];
 }
 
 export interface VentaResumenResponse {

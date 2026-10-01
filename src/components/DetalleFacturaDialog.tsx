@@ -168,6 +168,18 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
                 </Table>
               </div>
 
+              {venta.metodoPago === 'Mixto' && venta.detallesPago && venta.detallesPago.length > 0 && (
+                <div className="space-y-1 border-t border-border pt-3 text-sm">
+                  <p className="text-xs uppercase tracking-wide text-text-muted">Desglose del pago</p>
+                  {venta.detallesPago.map((linea) => (
+                    <div key={linea.metodoPago} className="flex justify-between">
+                      <span className="text-text-muted">{linea.metodoPago}</span>
+                      <span className="text-navy">{formatoMoneda.format(linea.monto)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex justify-end border-t border-border pt-4">
                 <div className="text-right">
                   <p className="text-xs uppercase tracking-wide text-text-muted">Total</p>
