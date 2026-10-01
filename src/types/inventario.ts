@@ -16,7 +16,10 @@ export interface Producto {
   stockMinimo: number;
   codigoBarras: string | null;
   activo: boolean;
+  aplicaIva: boolean;
   tarifaIva: number;
+  // Costo de adquisición, para métricas de rentabilidad. Nunca se muestra al cliente.
+  costo: number;
   proveedorId: number | null;
 }
 
@@ -35,7 +38,9 @@ export interface CrearProductoRequest {
   stockInicial: number;
   stockMinimo: number;
   codigoBarras?: string;
+  aplicaIva: boolean;
   tarifaIva?: number;
+  costo: number;
   proveedorId?: number | null;
 }
 
@@ -47,7 +52,9 @@ export interface ActualizarProductoRequest {
   precio: number;
   stockMinimo: number;
   codigoBarras?: string;
+  aplicaIva: boolean;
   tarifaIva?: number;
+  costo: number;
   proveedorId?: number | null;
 }
 

@@ -76,7 +76,9 @@ interface NuevoProductoForm {
   stockInicial: string;
   stockMinimo: string;
   codigoBarras: string;
+  aplicaIva: boolean;
   tarifaIva: string;
+  costo: string;
   proveedorId: string;
 }
 
@@ -87,7 +89,9 @@ const formularioVacio: NuevoProductoForm = {
   stockInicial: '',
   stockMinimo: '',
   codigoBarras: '',
+  aplicaIva: true,
   tarifaIva: '',
+  costo: '',
   proveedorId: '',
 };
 
@@ -260,8 +264,12 @@ export function Inventario() {
     setErrorBusquedaCodigo(null);
   }
 
-  function actualizarCampoFormulario(campo: keyof NuevoProductoForm, valor: string) {
+  function actualizarCampoFormulario(campo: keyof Omit<NuevoProductoForm, 'aplicaIva'>, valor: string) {
     setFormulario((previo) => ({ ...previo, [campo]: valor }));
+  }
+
+  function actualizarAplicaIva(aplicaIva: boolean) {
+    setFormulario((previo) => ({ ...previo, aplicaIva }));
   }
 
   function abrirDialogNuevo() {
@@ -283,7 +291,9 @@ export function Inventario() {
       stockInicial: '',
       stockMinimo: String(producto.stockMinimo),
       codigoBarras: producto.codigoBarras ?? '',
-      tarifaIva: String(producto.tarifaIva),
+      aplicaIva: producto.aplicaIva,
+      tarifaIva: String(producto.tarifaIva || (tarifaIvaGeneral ?? '')),
+      costo: String(producto.costo),
       proveedorId: producto.proveedorId ? String(producto.proveedorId) : '',
     });
     setErrorFormulario(null);
@@ -307,14 +317,25 @@ export function Inventario() {
     const stockMinimo = Number(formulario.stockMinimo);
     const categoriaId = Number(formulario.categoriaId);
     const tarifaIva = Number(formulario.tarifaIva);
+    const costo = formulario.costo.trim() === '' ? 0 : Number(formulario.costo);
 
     const camposBasicosInvalidos =
-      !formulario.nombre.trim() || !categoriaId || Number.isNaN(precio) || Number.isNaN(stockMinimo);
+      !formulario.nombre.trim() ||
+      !categoriaId ||
+      Number.isNaN(precio) ||
+      Number.isNaN(stockMinimo) ||
+      Number.isNaN(costo) ||
+      costo < 0;
+    // La tarifa solo es obligatoria cuando el producto aplica IVA; si no aplica, se ignora
+    // (el backend siempre la guarda en 0 — ver Producto.ActualizarInformacion/Crear).
     const tarifaIvaInvalida =
-      formulario.tarifaIva.trim() === '' || Number.isNaN(tarifaIva) || tarifaIva < 0 || tarifaIva > 100;
+      formulario.aplicaIva &&
+      (formulario.tarifaIva.trim() === '' || Number.isNaN(tarifaIva) || tarifaIva < 0 || tarifaIva > 100);
 
     if (camposBasicosInvalidos || tarifaIvaInvalida || (!productoEditando && Number.isNaN(stockInicial))) {
-      setErrorFormulario('Completa todos los campos obligatorios con valores válidos. El IVA debe estar entre 0 y 100.');
+      setErrorFormulario(
+        'Completa todos los campos obligatorios con valores válidos. Si el producto aplica IVA, la tarifa debe estar entre 0 y 100.'
+      );
       return;
     }
 
@@ -329,7 +350,9 @@ export function Inventario() {
           categoriaId,
           precio,
           stockMinimo,
+          aplicaIva: formulario.aplicaIva,
           tarifaIva,
+          costo,
           proveedorId,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
         };
@@ -342,7 +365,9 @@ export function Inventario() {
           precio,
           stockInicial,
           stockMinimo,
+          aplicaIva: formulario.aplicaIva,
           tarifaIva,
+          costo,
           proveedorId,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
         };
@@ -462,10 +487,12 @@ export function Inventario() {
         </TableCell>
         <TableCell className="text-navy">{categoriaPorId.get(producto.categoriaId) ?? '—'}</TableCell>
         <TableCell className="text-navy">{formatoMoneda.format(producto.precio)}</TableCell>
-        <TableCell className="text-navy">{producto.tarifaIva}%</TableCell>
-        <TableCell className="text-text-muted">
-          {formatoMoneda.format(producto.precio * (1 + producto.tarifaIva / 100))}
+        <TableCell className="text-navy">
+          {producto.aplicaIva ? `${producto.tarifaIva}%` : <span className="text-text-muted">Exento</span>}
         </TableCell>
+        {esAdmin && (
+          <TableCell className="text-text-muted">{formatoMoneda.format(producto.costo)}</TableCell>
+        )}
         <TableCell
           className={cn(
             'font-semibold',
@@ -600,7 +627,8 @@ export function Inventario() {
       {esAdmin && (
         <p className="text-xs text-text-muted">
           Columnas del Excel: Nombre, Categoría, Precio, StockInicial, StockMinimo, CodigoBarras (opcional),
-          TarifaIva (opcional; si se deja vacía se aplica el IVA general vigente).
+          TarifaIva (opcional: vacía aplica el IVA general vigente, 0 marca el producto como exento),
+          Costo (opcional).
         </p>
       )}
 
@@ -625,7 +653,7 @@ export function Inventario() {
                 <TableHead>Categoría</TableHead>
                 <TableHead>Precio</TableHead>
                 <TableHead>IVA (%)</TableHead>
-                <TableHead>Precio c/IVA</TableHead>
+                {esAdmin && <TableHead>Costo</TableHead>}
                 <TableHead>Stock actual</TableHead>
                 <TableHead>Stock mínimo</TableHead>
                 <TableHead>Código de barras</TableHead>
@@ -638,13 +666,13 @@ export function Inventario() {
                 renderFilaProducto(productoEncontradoPorCodigo)
               ) : cargando ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 10 : 9} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 10 : 8} className="py-8 text-center text-text-muted">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
                   </TableCell>
                 </TableRow>
               ) : productosFiltrados.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 10 : 9} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={esAdmin ? 10 : 8} className="py-8 text-center text-text-muted">
                     No se encontraron productos.
                   </TableCell>
                 </TableRow>
@@ -720,7 +748,7 @@ export function Inventario() {
 
             <div className={cn('grid grid-cols-1 gap-4', productoEditando ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
               <div className="space-y-2">
-                <Label htmlFor="precio">Precio</Label>
+                <Label htmlFor="precio">Precio de venta</Label>
                 <Input
                   id="precio"
                   type="number"
@@ -730,6 +758,23 @@ export function Inventario() {
                   onChange={(e) => actualizarCampoFormulario('precio', e.target.value)}
                   required
                 />
+                <p className="text-xs text-text-muted">
+                  Valor final que paga el cliente (ya incluye el IVA, si aplica).
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="costo">Costo</Label>
+                <Input
+                  id="costo"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formulario.costo}
+                  onChange={(e) => actualizarCampoFormulario('costo', e.target.value)}
+                />
+                <p className="text-xs text-text-muted">
+                  Para calcular rentabilidad. Nunca se muestra al cliente ni en la factura.
+                </p>
               </div>
               {!productoEditando && (
                 <div className="space-y-2">
@@ -755,28 +800,39 @@ export function Inventario() {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tarifaIva">IVA (%)</Label>
-                <div className="relative">
-                  <Input
-                    id="tarifaIva"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={formulario.tarifaIva}
-                    onChange={(e) => actualizarCampoFormulario('tarifaIva', e.target.value)}
-                    className="pr-8"
-                    required
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
-                    %
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="aplicaIva">¿Aplica IVA?</Label>
+                <label className="flex items-center gap-2">
+                  <Switch id="aplicaIva" checked={formulario.aplicaIva} onCheckedChange={actualizarAplicaIva} />
+                  <span className="text-sm text-text-muted">
+                    {formulario.aplicaIva ? 'Sí, este producto causa IVA' : 'No, este producto está exento de IVA'}
                   </span>
-                </div>
-                {!productoEditando && tarifaIvaGeneral !== null && (
-                  <p className="text-xs text-text-muted">Tarifa general vigente: {tarifaIvaGeneral}%</p>
-                )}
+                </label>
               </div>
+              {formulario.aplicaIva && (
+                <div className="space-y-2">
+                  <Label htmlFor="tarifaIva">Tarifa de IVA (%)</Label>
+                  <div className="relative">
+                    <Input
+                      id="tarifaIva"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={formulario.tarifaIva}
+                      onChange={(e) => actualizarCampoFormulario('tarifaIva', e.target.value)}
+                      className="pr-8"
+                      required
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
+                      %
+                    </span>
+                  </div>
+                  {!productoEditando && tarifaIvaGeneral !== null && (
+                    <p className="text-xs text-text-muted">Tarifa general vigente: {tarifaIvaGeneral}%</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

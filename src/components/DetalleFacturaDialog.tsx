@@ -55,6 +55,12 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
   const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
   const [imprimiendoTiquete, setImprimiendoTiquete] = useState(false);
 
+  // Base e IVA segregados para el resumen final de la factura: se derivan sumando el
+  // desglose por línea que ya trae cada detalle (ver VentaService), nunca recalculando el
+  // IVA acá — así el resumen siempre coincide exactamente con lo que se cobró.
+  const valorBase = venta?.detalles.reduce((acumulado, linea) => acumulado + linea.subtotalSinIva, 0) ?? 0;
+  const valorIva = venta?.detalles.reduce((acumulado, linea) => acumulado + linea.iva, 0) ?? 0;
+
   // Se consulta el nombre de la impresora configurada solo cuando el diálogo se abre (no en
   // cada render), y solo una vez: si no hay impresora configurada, el botón de tiquete
   // físico simplemente no se muestra, en vez de mostrar un botón que siempre fallaría.
@@ -150,7 +156,7 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
                       <TableHead>Producto</TableHead>
                       <TableHead>Cantidad</TableHead>
                       <TableHead>Precio unit.</TableHead>
-                      <TableHead className="text-right">Subtotal</TableHead>
+                      <TableHead className="text-right">Subtotal (sin IVA)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -160,7 +166,7 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
                         <TableCell className="text-navy">{linea.cantidad}</TableCell>
                         <TableCell className="text-navy">{formatoMoneda.format(linea.precioUnitario)}</TableCell>
                         <TableCell className="text-right font-medium text-navy">
-                          {formatoMoneda.format(linea.subtotalConIva)}
+                          {formatoMoneda.format(linea.subtotalSinIva)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -181,9 +187,19 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
               )}
 
               <div className="flex justify-end border-t border-border pt-4">
-                <div className="text-right">
-                  <p className="text-xs uppercase tracking-wide text-text-muted">Total</p>
-                  <p className="text-2xl font-bold text-navy">{formatoMoneda.format(venta.total)}</p>
+                <div className="w-full max-w-[220px] space-y-1.5 text-right">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Valor base</span>
+                    <span className="text-navy">{formatoMoneda.format(valorBase)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">IVA</span>
+                    <span className="text-navy">{formatoMoneda.format(valorIva)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-border pt-1.5">
+                    <span className="text-xs uppercase tracking-wide text-text-muted">Total</span>
+                    <span className="text-xl font-bold text-navy">{formatoMoneda.format(venta.total)}</span>
+                  </div>
                 </div>
               </div>
 
