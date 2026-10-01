@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
 import {
   actualizarProducto,
+  ajustarStock,
   buscarProductoPorCodigoBarras,
   crearProducto,
   desactivarProducto,
@@ -140,6 +141,13 @@ export function Inventario() {
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
 
+  // Ajuste rápido de stock: doble clic en "Stock actual" habilita un input chiquito donde se
+  // escribe cuánto sumar (ej. "10") o restar (ej. "-3") — para cuando llega mercancía o hay que
+  // corregir un conteo físico, sin pasar por el formulario completo de edición del producto.
+  const [editandoStockId, setEditandoStockId] = useState<number | null>(null);
+  const [deltaStockInput, setDeltaStockInput] = useState('');
+  const [guardandoAjusteStock, setGuardandoAjusteStock] = useState(false);
+
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [productoParaDesactivar, setProductoParaDesactivar] = useState<Producto | null>(null);
   const [desactivando, setDesactivando] = useState(false);
@@ -262,6 +270,44 @@ export function Inventario() {
   function limpiarBusquedaPorCodigo() {
     setProductoEncontradoPorCodigo(null);
     setErrorBusquedaCodigo(null);
+  }
+
+  function iniciarEdicionStock(producto: Producto) {
+    if (!esAdmin) return;
+    setEditandoStockId(producto.id);
+    setDeltaStockInput('');
+  }
+
+  function cancelarEdicionStock() {
+    setEditandoStockId(null);
+    setDeltaStockInput('');
+  }
+
+  async function confirmarAjusteStock(producto: Producto) {
+    const delta = Number(deltaStockInput);
+    if (deltaStockInput.trim() === '' || Number.isNaN(delta) || delta === 0) {
+      cancelarEdicionStock();
+      return;
+    }
+
+    setGuardandoAjusteStock(true);
+    try {
+      const actualizado = await ajustarStock(producto.id, delta, token);
+      setProductos((actuales) =>
+        actuales.map((p) => (p.id === actualizado.id ? { ...p, stockActual: actualizado.stockActual } : p))
+      );
+      if (productoEncontradoPorCodigo?.id === actualizado.id) {
+        setProductoEncontradoPorCodigo((previo) => (previo ? { ...previo, stockActual: actualizado.stockActual } : previo));
+      }
+      toast.success(
+        `Stock de "${producto.nombre}" ${delta > 0 ? 'aumentado' : 'reducido'} a ${actualizado.stockActual}`
+      );
+      cancelarEdicionStock();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo ajustar el stock.');
+    } finally {
+      setGuardandoAjusteStock(false);
+    }
   }
 
   function actualizarCampoFormulario(campo: keyof Omit<NuevoProductoForm, 'aplicaIva'>, valor: string) {
@@ -496,10 +542,35 @@ export function Inventario() {
         <TableCell
           className={cn(
             'font-semibold',
-            sinStock ? 'text-error-text' : stockBajo ? 'text-gold' : 'text-navy'
+            sinStock ? 'text-error-text' : stockBajo ? 'text-gold' : 'text-navy',
+            esAdmin && editandoStockId !== producto.id && 'cursor-pointer'
           )}
+          onDoubleClick={() => iniciarEdicionStock(producto)}
+          title={esAdmin ? 'Doble clic para ajustar el stock' : undefined}
         >
-          {producto.stockActual}
+          {editandoStockId === producto.id ? (
+            <Input
+              autoFocus
+              type="number"
+              step="1"
+              placeholder="+10 o -3"
+              value={deltaStockInput}
+              onChange={(e) => setDeltaStockInput(e.target.value)}
+              onBlur={cancelarEdicionStock}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  confirmarAjusteStock(producto);
+                } else if (e.key === 'Escape') {
+                  cancelarEdicionStock();
+                }
+              }}
+              disabled={guardandoAjusteStock}
+              className="h-7 w-24 text-sm"
+            />
+          ) : (
+            producto.stockActual
+          )}
         </TableCell>
         <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
         <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
@@ -628,7 +699,7 @@ export function Inventario() {
         <p className="text-xs text-text-muted">
           Columnas del Excel: Nombre, Categoría, Precio, StockInicial, StockMinimo, CodigoBarras (opcional),
           TarifaIva (opcional: vacía aplica el IVA general vigente, 0 marca el producto como exento),
-          Costo (opcional).
+          Costo (opcional). Doble clic en "Stock actual" para ajustarlo rápido (ej. +10 o -3).
         </p>
       )}
 

@@ -86,6 +86,16 @@ export async function reactivarProducto(id: number, token: string | null): Promi
   });
 }
 
+// delta puede ser positivo (sumar, ej. llegó mercancía) o negativo (restar, ej. corregir un
+// conteo físico); el backend valida que el resultado no quede negativo.
+export async function ajustarStock(id: number, delta: number, token: string | null): Promise<Producto> {
+  return apiRequest<Producto>(`/api/productos/${id}/ajustar-stock`, {
+    method: 'PATCH',
+    body: { delta },
+    token,
+  });
+}
+
 export async function importarProductos(
   archivo: File,
   token: string | null
