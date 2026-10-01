@@ -7,6 +7,12 @@ export interface ConfiguracionGeneral {
   telefonoNotificacionesAdmin: string | null;
   /** Nombre de la impresora térmica de tiquetes (tal como la ve QZ Tray). null si no está configurada. */
   nombreImpresoraTickets: string | null;
+  /** Razón social que se imprime en el encabezado de la factura/tiquete. null si no se ha configurado. */
+  nombreEmpresa: string | null;
+  nitEmpresa: string | null;
+  direccionEmpresa: string | null;
+  telefonoEmpresa: string | null;
+  emailEmpresa: string | null;
 }
 
 // El backend actualiza la fila de Configuracion completa en un solo PUT (no hay PATCH parcial),
@@ -16,4 +22,9 @@ export interface ActualizarConfiguracionRequest {
   tarifaIvaPorDefecto: number;
   telefonoNotificacionesAdmin: string | null;
   nombreImpresoraTickets: string | null;
+  nombreEmpresa: string | null;
+  nitEmpresa: string | null;
+  direccionEmpresa: string | null;
+  telefonoEmpresa: string | null;
+  emailEmpresa: string | null;
 }

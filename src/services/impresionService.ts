@@ -16,6 +16,19 @@ const ANCHO_TICKET = 32; // columnas para una impresora de 58mm; en 80mm sobra e
 // las impresoras térmicas con puerto RJ11/RJ12 para el cajón de dinero.
 const ABRIR_CAJON = ESC + 'p' + '\x00' + '\x19' + '\xFA';
 
+// Datos del emisor (negocio) configurables desde Configuración > "Datos de la empresa", que
+// se imprimen en el encabezado del tiquete. Todos opcionales: el que no esté configurado
+// simplemente no aparece en esa línea, en vez de imprimir "null" o dejar un hueco vacío.
+export interface DatosEmpresaTiquete {
+  nombreEmpresa: string | null;
+  nitEmpresa: string | null;
+  direccionEmpresa: string | null;
+  telefonoEmpresa: string | null;
+  emailEmpresa: string | null;
+}
+
+const NOMBRE_EMPRESA_POR_DEFECTO = 'FERRETERIA GOLD';
+
 let conexionEnCurso: Promise<void> | null = null;
 
 async function asegurarConexion(): Promise<void> {
@@ -41,22 +54,59 @@ function lineaDosColumnas(izquierda: string, derecha: string, ancho: number = AN
   return izquierda + ' '.repeat(espacio) + derecha + '\n';
 }
 
-function construirTiquete(venta: VentaResponse): string[] {
-  const lineas: string[] = [];
+// Valor base (sin IVA) y valor del IVA del total de la venta, sumando el desglose por línea
+// que ya trae cada detalle (ver VentaService) — el mismo cálculo que usa la vista digital en
+// DetalleFacturaDialog, así el tiquete físico siempre coincide con lo que se ve en pantalla.
+function calcularBaseEIva(venta: VentaResponse): { valorBase: number; valorIva: number } {
+  return venta.detalles.reduce(
+    (acumulado, linea) => ({
+      valorBase: acumulado.valorBase + linea.subtotalSinIva,
+      valorIva: acumulado.valorIva + linea.iva,
+    }),
+    { valorBase: 0, valorIva: 0 }
+  );
+}
 
+function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquete): string[] {
+  const lineas: string[] = [];
+  const { valorBase, valorIva } = calcularBaseEIva(venta);
+
+  // --- Encabezado: datos del emisor (negocio) ---
   lineas.push(ESC + '@'); // reset de la impresora
   lineas.push(ESC + 'a' + '\x01'); // centrar
   lineas.push(ESC + '!' + '\x18'); // negrita + doble alto/ancho
-  lineas.push('FERRETERIA GOLD\n');
+  lineas.push(`${datosEmpresa.nombreEmpresa || NOMBRE_EMPRESA_POR_DEFECTO}\n`);
   lineas.push(ESC + '!' + '\x00'); // texto normal
-  lineas.push(`Factura ${venta.numeroFactura}\n`);
+  if (datosEmpresa.nitEmpresa) {
+    lineas.push(`NIT ${datosEmpresa.nitEmpresa}\n`);
+  }
+  if (datosEmpresa.direccionEmpresa) {
+    lineas.push(`${datosEmpresa.direccionEmpresa}\n`);
+  }
+  if (datosEmpresa.telefonoEmpresa) {
+    lineas.push(`Tel. ${datosEmpresa.telefonoEmpresa}\n`);
+  }
+  if (datosEmpresa.emailEmpresa) {
+    lineas.push(`${datosEmpresa.emailEmpresa}\n`);
+  }
+  lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+
+  // --- Factura, fecha y cliente ---
   lineas.push(ESC + 'a' + '\x00'); // alinear a la izquierda
+  lineas.push(`Factura ${venta.numeroFactura}\n`);
   lineas.push(`${formatoFecha(venta.fecha)}\n`);
   if (venta.nombreComprador) {
     lineas.push(`Cliente: ${venta.nombreComprador}\n`);
   }
+  if (venta.telefonoComprador) {
+    lineas.push(`Tel: ${venta.telefonoComprador}\n`);
+  }
+  if (venta.emailComprador) {
+    lineas.push(`${venta.emailComprador}\n`);
+  }
   lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
 
+  // --- Productos ---
   for (const detalle of venta.detalles) {
     lineas.push(`${detalle.productoNombre}\n`);
     lineas.push(
@@ -68,6 +118,12 @@ function construirTiquete(venta: VentaResponse): string[] {
   }
 
   lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+
+  // --- Valor base, IVA y total segregados (igual que la factura digital) ---
+  lineas.push(lineaDosColumnas('SUBTOTAL', formatoMoneda.format(valorBase)));
+  if (valorIva > 0) {
+    lineas.push(lineaDosColumnas('IVA', formatoMoneda.format(valorIva)));
+  }
   lineas.push(ESC + '!' + '\x08'); // negrita
   lineas.push(lineaDosColumnas('TOTAL', formatoMoneda.format(venta.total)));
   lineas.push(ESC + '!' + '\x00');
@@ -97,10 +153,14 @@ function construirTiquete(venta: VentaResponse): string[] {
  * Imprime el tiquete físico de una venta (o cuenta fiada cerrada) en la impresora térmica
  * configurada, y abre el cajón de dinero como parte del mismo trabajo de impresión.
  */
-export async function imprimirRecibo(venta: VentaResponse, nombreImpresora: string): Promise<void> {
+export async function imprimirRecibo(
+  venta: VentaResponse,
+  nombreImpresora: string,
+  datosEmpresa: DatosEmpresaTiquete
+): Promise<void> {
   await asegurarConexion();
   const config = qz.configs.create(nombreImpresora);
-  await qz.print(config, construirTiquete(venta));
+  await qz.print(config, construirTiquete(venta, datosEmpresa));
 }
 
 /**

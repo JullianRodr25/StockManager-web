@@ -43,6 +43,24 @@ const formatoMoneda = new Intl.NumberFormat('es-CO', {
   maximumFractionDigits: 0,
 });
 
+// Separador de miles (punto, formato es-CO) para los campos de dinero que el cajero escribe a
+// mano (monto recibido, desglose de pago mixto): sin esto, escribir "180000" a ciegas es
+// fastidioso y propenso a errores de dígitos; con el punto de miles se lee igual que el resto
+// de montos ya formateados en pantalla (ej. el precio unitario o el total).
+const formatoMiles = new Intl.NumberFormat('es-CO');
+
+// El estado sigue guardando solo dígitos (ej. "180000"), nunca el texto formateado: así el
+// resto del código (validaciones, Number(...), lo que se envía al backend) no cambia.
+function formatearMiles(valorCrudo: string): string {
+  const soloDigitos = valorCrudo.replace(/\D/g, '');
+  if (soloDigitos === '') return '';
+  return formatoMiles.format(Number(soloDigitos));
+}
+
+function desformatearMiles(valorFormateado: string): string {
+  return valorFormateado.replace(/\D/g, '');
+}
+
 const metodosPago: { valor: MetodoPago; etiqueta: string }[] = [
   { valor: 'Efectivo', etiqueta: 'Efectivo' },
   { valor: 'Tarjeta', etiqueta: 'Tarjeta' },
@@ -580,11 +598,10 @@ export function Ventas() {
                 <Label htmlFor="montoRecibido">Monto recibido</Label>
                 <Input
                   id="montoRecibido"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={montoRecibido}
-                  onChange={(e) => setMontoRecibido(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatearMiles(montoRecibido)}
+                  onChange={(e) => setMontoRecibido(desformatearMiles(e.target.value))}
                   disabled={registrando}
                   required
                   className={cn(
@@ -633,11 +650,10 @@ export function Ventas() {
                       </SelectContent>
                     </Select>
                     <Input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={linea.monto}
-                      onChange={(e) => actualizarLineaDesglose(indice, 'monto', e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      value={formatearMiles(linea.monto)}
+                      onChange={(e) => actualizarLineaDesglose(indice, 'monto', desformatearMiles(e.target.value))}
                       disabled={registrando}
                       placeholder="Monto"
                       aria-label="Monto de la línea"

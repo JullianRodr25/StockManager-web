@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { imprimirRecibo } from '@/services/impresionService';
+import type { DatosEmpresaTiquete } from '@/services/impresionService';
 import type { VentaResponse } from '@/types/ventas';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ interface DetalleFacturaDialogProps {
 export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFacturaDialogProps) {
   const { token } = useAuth();
   const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
+  const [datosEmpresa, setDatosEmpresa] = useState<DatosEmpresaTiquete | null>(null);
   const [imprimiendoTiquete, setImprimiendoTiquete] = useState(false);
 
   // Base e IVA segregados para el resumen final de la factura: se derivan sumando el
@@ -67,7 +69,16 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
   useEffect(() => {
     if (!open || nombreImpresora !== null) return;
     obtenerConfiguracion(token)
-      .then((config) => setNombreImpresora(config.nombreImpresoraTickets))
+      .then((config) => {
+        setNombreImpresora(config.nombreImpresoraTickets);
+        setDatosEmpresa({
+          nombreEmpresa: config.nombreEmpresa,
+          nitEmpresa: config.nitEmpresa,
+          direccionEmpresa: config.direccionEmpresa,
+          telefonoEmpresa: config.telefonoEmpresa,
+          emailEmpresa: config.emailEmpresa,
+        });
+      })
       .catch(() => {
         // Si no se pudo consultar la configuración, simplemente no se ofrece el botón de
         // impresión física; el resto del diálogo (factura en pantalla) sigue funcionando.
@@ -82,7 +93,13 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
     if (!venta || !nombreImpresora) return;
     setImprimiendoTiquete(true);
     try {
-      await imprimirRecibo(venta, nombreImpresora);
+      await imprimirRecibo(venta, nombreImpresora, datosEmpresa ?? {
+        nombreEmpresa: null,
+        nitEmpresa: null,
+        direccionEmpresa: null,
+        telefonoEmpresa: null,
+        emailEmpresa: null,
+      });
       toast.success('Tiquete enviado a la impresora y cajón abierto');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo imprimir el tiquete.');

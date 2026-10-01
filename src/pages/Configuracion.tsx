@@ -36,6 +36,15 @@ export function Configuracion() {
   const [nombreImpresoraInput, setNombreImpresoraInput] = useState('');
   const [guardandoImpresora, setGuardandoImpresora] = useState(false);
   const [errorImpresora, setErrorImpresora] = useState<string | null>(null);
+  const [datosEmpresaInput, setDatosEmpresaInput] = useState({
+    nombreEmpresa: '',
+    nitEmpresa: '',
+    direccionEmpresa: '',
+    telefonoEmpresa: '',
+    emailEmpresa: '',
+  });
+  const [guardandoDatosEmpresa, setGuardandoDatosEmpresa] = useState(false);
+  const [errorDatosEmpresa, setErrorDatosEmpresa] = useState<string | null>(null);
 
   useEffect(() => {
     obtenerConfiguracion(token)
@@ -44,6 +53,13 @@ export function Configuracion() {
         setTarifaIvaInput(String(data.tarifaIvaPorDefecto));
         setTelefonoAdminInput(data.telefonoNotificacionesAdmin ?? '');
         setNombreImpresoraInput(data.nombreImpresoraTickets ?? '');
+        setDatosEmpresaInput({
+          nombreEmpresa: data.nombreEmpresa ?? '',
+          nitEmpresa: data.nitEmpresa ?? '',
+          direccionEmpresa: data.direccionEmpresa ?? '',
+          telefonoEmpresa: data.telefonoEmpresa ?? '',
+          emailEmpresa: data.emailEmpresa ?? '',
+        });
       })
       .catch((err) => {
         setErrorConfiguracion(
@@ -111,6 +127,11 @@ export function Configuracion() {
           // campos vigentes para no borrarlos al guardar solo la tarifa.
           telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
           nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
+          nombreEmpresa: configuracion?.nombreEmpresa ?? null,
+          nitEmpresa: configuracion?.nitEmpresa ?? null,
+          direccionEmpresa: configuracion?.direccionEmpresa ?? null,
+          telefonoEmpresa: configuracion?.telefonoEmpresa ?? null,
+          emailEmpresa: configuracion?.emailEmpresa ?? null,
         },
         token
       );
@@ -145,6 +166,11 @@ export function Configuracion() {
           tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
           telefonoNotificacionesAdmin: valor === '' ? null : valor,
           nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
+          nombreEmpresa: configuracion?.nombreEmpresa ?? null,
+          nitEmpresa: configuracion?.nitEmpresa ?? null,
+          direccionEmpresa: configuracion?.direccionEmpresa ?? null,
+          telefonoEmpresa: configuracion?.telefonoEmpresa ?? null,
+          emailEmpresa: configuracion?.emailEmpresa ?? null,
         },
         token
       );
@@ -174,6 +200,11 @@ export function Configuracion() {
           tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
           telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
           nombreImpresoraTickets: valor === '' ? null : valor,
+          nombreEmpresa: configuracion?.nombreEmpresa ?? null,
+          nitEmpresa: configuracion?.nitEmpresa ?? null,
+          direccionEmpresa: configuracion?.direccionEmpresa ?? null,
+          telefonoEmpresa: configuracion?.telefonoEmpresa ?? null,
+          emailEmpresa: configuracion?.emailEmpresa ?? null,
         },
         token
       );
@@ -187,6 +218,45 @@ export function Configuracion() {
       toast.error(mensaje);
     } finally {
       setGuardandoImpresora(false);
+    }
+  }
+
+  async function handleGuardarDatosEmpresa(e: FormEvent) {
+    e.preventDefault();
+    setErrorDatosEmpresa(null);
+
+    setGuardandoDatosEmpresa(true);
+    try {
+      const actualizado = await actualizarConfiguracion(
+        {
+          tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
+          telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
+          nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
+          nombreEmpresa: datosEmpresaInput.nombreEmpresa.trim() === '' ? null : datosEmpresaInput.nombreEmpresa.trim(),
+          nitEmpresa: datosEmpresaInput.nitEmpresa.trim() === '' ? null : datosEmpresaInput.nitEmpresa.trim(),
+          direccionEmpresa:
+            datosEmpresaInput.direccionEmpresa.trim() === '' ? null : datosEmpresaInput.direccionEmpresa.trim(),
+          telefonoEmpresa:
+            datosEmpresaInput.telefonoEmpresa.trim() === '' ? null : datosEmpresaInput.telefonoEmpresa.trim(),
+          emailEmpresa: datosEmpresaInput.emailEmpresa.trim() === '' ? null : datosEmpresaInput.emailEmpresa.trim(),
+        },
+        token
+      );
+      setConfiguracion(actualizado);
+      setDatosEmpresaInput({
+        nombreEmpresa: actualizado.nombreEmpresa ?? '',
+        nitEmpresa: actualizado.nitEmpresa ?? '',
+        direccionEmpresa: actualizado.direccionEmpresa ?? '',
+        telefonoEmpresa: actualizado.telefonoEmpresa ?? '',
+        emailEmpresa: actualizado.emailEmpresa ?? '',
+      });
+      toast.success('Datos de la empresa actualizados correctamente');
+    } catch (err) {
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudieron actualizar los datos de la empresa.';
+      setErrorDatosEmpresa(mensaje);
+      toast.error(mensaje);
+    } finally {
+      setGuardandoDatosEmpresa(false);
     }
   }
 
@@ -371,6 +441,103 @@ export function Configuracion() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle className="text-navy">Datos de la empresa (facturación)</CardTitle>
+          <CardDescription>
+            Razón social, NIT, dirección, teléfono y correo que se imprimen en el encabezado de la
+            factura y del tiquete físico.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {cargandoConfiguracion ? (
+            <div className="flex items-center gap-2 text-sm text-text-muted">
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              Cargando datos de la empresa...
+            </div>
+          ) : errorConfiguracion ? (
+            <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+              {errorConfiguracion}
+            </div>
+          ) : esAdmin ? (
+            <form onSubmit={handleGuardarDatosEmpresa} className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="nombreEmpresa">Razón social</Label>
+                  <Input
+                    id="nombreEmpresa"
+                    placeholder="Ej. Ferretería Gold S.A.S."
+                    value={datosEmpresaInput.nombreEmpresa}
+                    onChange={(e) =>
+                      setDatosEmpresaInput((actual) => ({ ...actual, nombreEmpresa: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nitEmpresa">NIT</Label>
+                  <Input
+                    id="nitEmpresa"
+                    placeholder="Ej. 1012355433-1"
+                    value={datosEmpresaInput.nitEmpresa}
+                    onChange={(e) => setDatosEmpresaInput((actual) => ({ ...actual, nitEmpresa: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="direccionEmpresa">Dirección</Label>
+                  <Input
+                    id="direccionEmpresa"
+                    placeholder="Ej. Cl 1 A 13 39 Sur, Bogotá, D.C."
+                    value={datosEmpresaInput.direccionEmpresa}
+                    onChange={(e) =>
+                      setDatosEmpresaInput((actual) => ({ ...actual, direccionEmpresa: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="telefonoEmpresa">Teléfono</Label>
+                  <Input
+                    id="telefonoEmpresa"
+                    placeholder="Ej. 3134663029"
+                    value={datosEmpresaInput.telefonoEmpresa}
+                    onChange={(e) =>
+                      setDatosEmpresaInput((actual) => ({ ...actual, telefonoEmpresa: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emailEmpresa">Correo</Label>
+                  <Input
+                    id="emailEmpresa"
+                    type="email"
+                    placeholder="Ej. contacto@ferreteriagold.com"
+                    value={datosEmpresaInput.emailEmpresa}
+                    onChange={(e) => setDatosEmpresaInput((actual) => ({ ...actual, emailEmpresa: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-text-muted">
+                Todos los campos son opcionales; el que se deje vacío simplemente no aparece en el tiquete.
+              </p>
+
+              {errorDatosEmpresa && (
+                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                  {errorDatosEmpresa}
+                </div>
+              )}
+
+              <Button type="submit" variant="gold" disabled={guardandoDatosEmpresa}>
+                {guardandoDatosEmpresa ? 'Guardando...' : 'Guardar datos de la empresa'}
+              </Button>
+            </form>
+          ) : (
+            <p className="text-sm text-navy">
+              {configuracion?.nombreEmpresa ?? 'Sin configurar (solo un administrador puede hacerlo)'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="border-border">
         <CardHeader>
