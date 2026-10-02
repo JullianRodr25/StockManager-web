@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
-import { Barcode, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
+import { Barcode, Lightbulb, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -569,7 +569,24 @@ export function Inventario() {
               className="h-7 w-24 text-sm"
             />
           ) : (
-            producto.stockActual
+            <span className="inline-flex items-center gap-1.5">
+              {producto.stockActual}
+              {/* Bombillo rojo = estado crítico (sin stock, no se puede vender); amarillo =
+                  por debajo o igual al mínimo configurado (warning, todavía hay para vender
+                  pero hay que reponer pronto). Mismo criterio que ya dispara la notificación
+                  de stock bajo en la campana, así la señal es consistente en toda la app. */}
+              {sinStock ? (
+                <Lightbulb
+                  className="h-4 w-4 shrink-0 fill-error-text text-error-text"
+                  aria-label="Crítico: sin stock disponible"
+                />
+              ) : stockBajo ? (
+                <Lightbulb
+                  className="h-4 w-4 shrink-0 fill-gold text-gold"
+                  aria-label="Warning: stock por debajo del mínimo"
+                />
+              ) : null}
+            </span>
           )}
         </TableCell>
         <TableCell className="text-navy">{producto.stockMinimo}</TableCell>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Eye, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -172,7 +172,29 @@ export function HistorialVentas() {
                     <TableCell>
                       <BadgeEstado estado={venta.estado} />
                     </TableCell>
-                    <TableCell className="text-text-muted">{venta.numeroFactura}</TableCell>
+                    <TableCell className="text-text-muted">
+                      <div className="flex items-center justify-between gap-2">
+                        {venta.numeroFactura}
+                        {/* La fila entera ya abre el detalle al hacer clic, pero no es obvio
+                            a simple vista; este ojito lo deja claro sin cambiar el
+                            comportamiento (mismo abrirDetalle de siempre). stopPropagation
+                            evita que también se dispare el onClick de la fila y se pida el
+                            detalle dos veces. */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          aria-label={`Ver factura ${venta.numeroFactura}`}
+                          title="Ver factura"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            abrirDetalle(venta);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}

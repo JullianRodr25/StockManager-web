@@ -3,7 +3,7 @@ import { Loader2, Printer, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { obtenerConfiguracion } from '@/services/configuracionService';
-import { imprimirRecibo } from '@/services/impresionService';
+import { debeAbrirCajon, imprimirRecibo } from '@/services/impresionService';
 import type { DatosEmpresaTiquete } from '@/services/impresionService';
 import type { VentaResponse } from '@/types/ventas';
 import { Badge } from '@/components/ui/badge';
@@ -100,7 +100,9 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
         telefonoEmpresa: null,
         emailEmpresa: null,
       });
-      toast.success('Tiquete enviado a la impresora y cajón abierto');
+      toast.success(
+        debeAbrirCajon(venta) ? 'Tiquete enviado a la impresora y cajón abierto' : 'Tiquete enviado a la impresora'
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo imprimir el tiquete.');
     } finally {
@@ -259,7 +261,7 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
                   ) : (
                     <Receipt className="h-4 w-4" />
                   )}
-                  Imprimir tiquete y abrir caja
+                  {debeAbrirCajon(venta) ? 'Imprimir tiquete y abrir caja' : 'Imprimir tiquete'}
                 </Button>
               )}
               <Button type="button" variant="gold" onClick={handleImprimir}>

@@ -4,6 +4,7 @@ import { Loader2, Lock, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { loginEmpleado } from '@/services/authService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon } from '@/services/impresionService';
 import { obtenerProductos } from '@/services/inventarioService';
@@ -144,7 +145,7 @@ const estadoInicialComprador = {
 };
 
 export function Ventas() {
-  const { token } = useAuth();
+  const { token, usuario } = useAuth();
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
@@ -161,6 +162,10 @@ export function Ventas() {
   const [metodoPago, setMetodoPago] = useState<MetodoPagoVenta | ''>(estadoInicialComprador.metodoPago);
   const [montoRecibido, setMontoRecibido] = useState('');
   const [desglosePago, setDesglosePago] = useState(lineasDesgloseIniciales());
+  // Con Transferencia no hay forma de que el sistema confirme por sí solo que la plata ya
+  // llegó (suele ser Nequi u otra pasarela aparte): el cajero debe mirar el comprobante o el
+  // pantallazo y marcar esta casilla antes de poder confirmar la venta.
+  const [pagoTransferenciaRevisado, setPagoTransferenciaRevisado] = useState(false);
 
   // --- Factura electrónica ---
   const [requiereFacturaElectronica, setRequiereFacturaElectronica] = useState(false);
@@ -191,6 +196,17 @@ export function Ventas() {
 
   const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
   const [abriendoCajon, setAbriendoCajon] = useState(false);
+
+  // El botón de "Abrir caja" (fuera de una venta) pide la contraseña del cajero antes de
+  // mover dinero/abrir el cajón, para que no cualquiera con acceso al computador pueda
+  // hacerlo con solo apretar un botón. En vez de inventar una contraseña o PIN aparte (otro
+  // secreto que recordar y administrar), se reutiliza la misma contraseña con la que el
+  // cajero ya inició sesión: se reenvía al endpoint normal de login (loginEmpleado); si
+  // responde bien, la contraseña es correcta y se procede a abrir el cajón.
+  const [mostrarConfirmacionCajon, setMostrarConfirmacionCajon] = useState(false);
+  const [passwordCajon, setPasswordCajon] = useState('');
+  const [verificandoPasswordCajon, setVerificandoPasswordCajon] = useState(false);
+  const [errorPasswordCajon, setErrorPasswordCajon] = useState<string | null>(null);
 
   // En modo "Cliente registrado", busca por nombre o número de identificación a medida que el
   // cajero escribe (solo clientes activos: uno inactivo no debería poder seleccionarse para una
@@ -241,6 +257,15 @@ export function Ventas() {
       emailFacturacion: clienteSeleccionado.emailFacturacion ?? '',
     });
   }, [modoComprador, clienteSeleccionado]);
+
+  // Si el cajero cambia el método de pago (p. ej. eligió Transferencia, marcó la revisión, y
+  // luego se da cuenta de que en realidad fue Efectivo), la confirmación anterior ya no
+  // aplica al nuevo método y debe volver a pedirse.
+  useEffect(() => {
+    if (metodoPago !== 'Transferencia') {
+      setPagoTransferenciaRevisado(false);
+    }
+  }, [metodoPago]);
 
   function seleccionarCliente(cliente: Cliente) {
     setClienteSeleccionado(cliente);
@@ -323,6 +348,36 @@ export function Ventas() {
       toast.error(err instanceof Error ? err.message : 'No se pudo abrir el cajón.');
     } finally {
       setAbriendoCajon(false);
+    }
+  }
+
+  function handlePedirConfirmacionCajon() {
+    setPasswordCajon('');
+    setErrorPasswordCajon(null);
+    setMostrarConfirmacionCajon(true);
+  }
+
+  async function handleConfirmarPasswordCajon(evento: FormEvent) {
+    evento.preventDefault();
+    if (!usuario || verificandoPasswordCajon) return;
+    if (!passwordCajon) {
+      setErrorPasswordCajon('Ingresa tu contraseña.');
+      return;
+    }
+    setVerificandoPasswordCajon(true);
+    setErrorPasswordCajon(null);
+    try {
+      // No hay un endpoint aparte para "solo verificar contraseña": reautenticar contra el
+      // mismo login es la forma más simple y segura de confirmarla sin duplicar lógica de
+      // hashing/validación que ya vive en el backend.
+      await loginEmpleado({ identificador: usuario.numeroIdentificacion, password: passwordCajon });
+      setMostrarConfirmacionCajon(false);
+      setPasswordCajon('');
+      await handleAbrirCajon();
+    } catch (err) {
+      setErrorPasswordCajon(err instanceof ApiError ? err.message : 'Contraseña incorrecta.');
+    } finally {
+      setVerificandoPasswordCajon(false);
     }
   }
 
@@ -468,6 +523,7 @@ export function Ventas() {
     setMetodoPago(estadoInicialComprador.metodoPago);
     setMontoRecibido('');
     setDesglosePago(lineasDesgloseIniciales());
+    setPagoTransferenciaRevisado(false);
     setRequiereFacturaElectronica(false);
     setClienteSeleccionado(null);
     setBusquedaCliente('');
@@ -511,6 +567,10 @@ export function Ventas() {
           ? 'Completa al menos dos métodos de pago con su monto.'
           : 'La suma del desglose debe ser igual al total de la venta.'
       );
+      return;
+    }
+    if (metodoPago === 'Transferencia' && !pagoTransferenciaRevisado) {
+      setErrorFormulario('Confirma que revisaste el comprobante de la transferencia antes de continuar.');
       return;
     }
     if (modoComprador === 'registrado' && (!Number.isInteger(Number(clienteId)) || Number(clienteId) <= 0)) {
@@ -677,7 +737,7 @@ export function Ventas() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleAbrirCajon}
+                onClick={handlePedirConfirmacionCajon}
                 disabled={abriendoCajon}
               >
                 {abriendoCajon ? (
@@ -844,7 +904,15 @@ export function Ventas() {
                             <button
                               key={cliente.id}
                               type="button"
-                              onClick={() => seleccionarCliente(cliente)}
+                              // onMouseDown (no onClick) + preventDefault: evita que el input
+                              // pierda el foco (blur) antes de que el clic en el resultado
+                              // llegue a registrarse. Con onClick, el blur del input oculta el
+                              // dropdown justo antes de que el navegador dispare el evento de
+                              // clic, así que a veces el resultado "no selecciona nada".
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                seleccionarCliente(cliente);
+                              }}
                               className="flex w-full flex-col border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-background"
                             >
                               <span className="text-navy">{cliente.nombre}</span>
@@ -1116,6 +1184,22 @@ export function Ventas() {
               </div>
             )}
 
+            {metodoPago === 'Transferencia' && (
+              <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
+                <p className="text-sm text-text-muted">
+                  Antes de confirmar, verifica el comprobante o pantallazo del pago (Nequi u otra pasarela).
+                </p>
+                <label className="flex cursor-pointer items-start gap-2.5">
+                  <Checkbox
+                    checked={pagoTransferenciaRevisado}
+                    onCheckedChange={(valor) => setPagoTransferenciaRevisado(valor === true)}
+                    disabled={registrando}
+                  />
+                  <span className="text-sm font-medium text-navy">Confirmo que revisé el comprobante de pago</span>
+                </label>
+              </div>
+            )}
+
             {metodoPago === 'Mixto' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -1200,6 +1284,59 @@ export function Ventas() {
               <Button type="submit" variant="gold" disabled={registrando}>
                 {registrando && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
                 {registrando ? 'Confirmando venta...' : 'Confirmar venta'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={mostrarConfirmacionCajon}
+        onOpenChange={(abierto) => {
+          setMostrarConfirmacionCajon(abierto);
+          if (!abierto) {
+            setPasswordCajon('');
+            setErrorPasswordCajon(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirmar apertura de caja</DialogTitle>
+            <DialogDescription>Ingresa tu contraseña de inicio de sesión para abrir el cajón.</DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleConfirmarPasswordCajon} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password-cajon">Contraseña</Label>
+              <Input
+                id="password-cajon"
+                type="password"
+                autoFocus
+                value={passwordCajon}
+                onChange={(e) => setPasswordCajon(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+
+            {errorPasswordCajon && (
+              <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                {errorPasswordCajon}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMostrarConfirmacionCajon(false)}
+                disabled={verificandoPasswordCajon}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" variant="gold" disabled={verificandoPasswordCajon}>
+                {verificandoPasswordCajon && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+                {verificandoPasswordCajon ? 'Verificando...' : 'Abrir caja'}
               </Button>
             </DialogFooter>
           </form>
