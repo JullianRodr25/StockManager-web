@@ -3,6 +3,7 @@ import type {
   AbonoResponse,
   FiltrosVentas,
   LineaVentaRequest,
+  ProductoVentaReciente,
   RegistrarAbonoRequest,
   RegistrarVentaRequest,
   VentaResponse,
@@ -111,4 +112,13 @@ export async function cancelarCuenta(ventaId: number, token: string | null): Pro
     method: 'DELETE',
     token,
   });
+}
+
+// Últimos productos distintos vendidos (más reciente primero), para los accesos directos del
+// mostrador en Ventas.
+export async function obtenerProductosRecientes(
+  token: string | null,
+  limite = 10
+): Promise<ProductoVentaReciente[]> {
+  return apiRequest<ProductoVentaReciente[]>(`/api/ventas/productos-recientes?limite=${limite}`, { token });
 }

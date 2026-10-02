@@ -20,6 +20,10 @@ interface BuscadorProductosProps {
   disabled?: boolean;
   titulo?: string;
   descripcion?: string;
+  // Accesos directos a los últimos productos vendidos (más reciente primero), para agregarlos
+  // al carrito con un clic sin tener que escribir nada. Opcional: si no se pasa, esta sección
+  // simplemente no aparece (así FiadoPage, que reutiliza este mismo buscador, no se ve afectado).
+  productosRecientes?: Producto[];
 }
 
 export function BuscadorProductos({
@@ -31,6 +35,7 @@ export function BuscadorProductos({
   disabled = false,
   titulo = 'Buscar producto',
   descripcion = 'Escanea el código de barras o escribe el nombre.',
+  productosRecientes = [],
 }: BuscadorProductosProps) {
   const [terminoBusqueda, setTerminoBusqueda] = useState('');
   const [buscandoCodigo, setBuscandoCodigo] = useState(false);
@@ -48,6 +53,10 @@ export function BuscadorProductos({
   const resultadosBusqueda = [...coincidencias]
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .slice(0, termino ? MAX_RESULTADOS_BUSQUEDA : MAX_RESULTADOS_SIN_FILTRO);
+
+  // Igual que en el buscador: un producto sin stock no se puede vender, así que no tiene
+  // sentido ofrecerlo como acceso directo.
+  const accesosDirectos = productosRecientes.filter((producto) => producto.stockActual > 0);
 
   async function handleEnterBusqueda(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter') return;
@@ -142,6 +151,29 @@ export function BuscadorProductos({
                 </button>
               ))
             )}
+          </div>
+        )}
+
+        {!mostrarDropdown && accesosDirectos.length > 0 && (
+          <div className="space-y-2 pt-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+              Accesos directos · últimos vendidos
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {accesosDirectos.map((producto) => (
+                <button
+                  key={producto.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onSeleccionarProducto(producto)}
+                  title={`Agregar ${producto.nombre}`}
+                  className="rounded-full border border-border bg-background px-3 py-1.5 text-left text-sm text-navy transition-colors hover:border-gold hover:bg-gold/10 disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
+                >
+                  {producto.nombre}
+                  <span className="ml-1.5 text-text-muted">{formatoMoneda.format(producto.precio)}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

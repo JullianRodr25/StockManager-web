@@ -181,7 +181,15 @@ function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquet
   lineas.push('\n');
   lineas.push(ESC + 'a' + '\x01');
   lineas.push('Gracias por su compra\n');
-  lineas.push('\n\n\n');
+  // Antes de cortar, se avanza el papel con el comando ESC d (avanzar n líneas) en vez de
+  // simples '\n': el salto de línea "a secas" depende de la altura de línea que tenga
+  // configurada la impresora en ese momento (puede variar entre modelos e incluso entre
+  // trabajos de impresión), mientras que ESC d siempre avanza exactamente n líneas sin
+  // importar esa configuración. Con solo 3 saltos de línea el corte físico (GS V) todavía
+  // caía sobre "Gracias por su compra" y se la llevaba por delante; con 10 líneas de margen
+  // queda bastante espacio en blanco entre el texto y el corte, para que el mensaje se vea
+  // completo y más arriba del borde del tiquete.
+  lineas.push(ESC + 'd' + '\x0A');
   lineas.push(GS + 'V' + '\x00'); // corte de papel
 
   // La orden de apertura del cajón se envía junto con el tiquete, en el mismo trabajo de

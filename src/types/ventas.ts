@@ -137,3 +137,11 @@ export interface AbonoResponse {
 export interface EditarCantidadLineaRequest {
   cantidad: number;
 }
+
+// Solo trae id y nombre: el resto de los datos para agregarlo al carrito (precio, stock, IVA)
+// ya están en la lista de productos que Ventas carga aparte, así que acá solo hace falta saber
+// cuáles son y en qué orden (más reciente primero).
+export interface ProductoVentaReciente {
+  productoId: number;
+  nombre: string;
+}

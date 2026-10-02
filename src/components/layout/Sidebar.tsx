@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useLogo } from '@/context/LogoContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
@@ -67,11 +68,16 @@ const modulos: ModuloNav[] = [
 ];
 
 function Marca({ compact = false }: { compact?: boolean }) {
+  // Usa el logo configurado en Configuración (o el predeterminado de la ferretería si nadie
+  // subió uno propio); antes esta insignia era un "FG" fijo que nunca reflejaba el logo real.
+  const { logoUrl } = useLogo();
   return (
     <div className={cn('flex items-center gap-3 px-6 py-6', compact && 'px-4 py-5')}>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-gold bg-brand-navy font-heading text-xs font-bold tracking-wide text-gold">
-        FG
-      </div>
+      <img
+        src={logoUrl}
+        alt="Logo de la empresa"
+        className="h-9 w-9 shrink-0 rounded-full border-2 border-gold object-cover"
+      />
       <span className="font-heading text-sm font-semibold tracking-wide text-white">
         Ferretería Gold
       </span>

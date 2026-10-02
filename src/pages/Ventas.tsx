@@ -8,7 +8,7 @@ import { loginEmpleado } from '@/services/authService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon } from '@/services/impresionService';
 import { obtenerProductos } from '@/services/inventarioService';
-import { registrarVenta } from '@/services/ventaService';
+import { obtenerProductosRecientes, registrarVenta } from '@/services/ventaService';
 import { buscarClientes, crearCliente } from '@/services/clienteService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import type { Producto } from '@/types/inventario';
@@ -407,6 +407,29 @@ export function Ventas() {
     [productos]
   );
 
+  // Accesos directos del buscador: solo guarda los IDs en el orden que da el backend (más
+  // reciente primero); los datos completos para agregarlos al carrito (precio, stock, etc.)
+  // se toman de "productos", que ya está cargado aparte, en vez de duplicarlos.
+  const [idsProductosRecientes, setIdsProductosRecientes] = useState<number[]>([]);
+
+  const cargarProductosRecientes = useCallback(async () => {
+    try {
+      const recientes = await obtenerProductosRecientes(token);
+      setIdsProductosRecientes(recientes.map((item) => item.productoId));
+    } catch {
+      // Si falla, los accesos directos simplemente no aparecen; no es crítico para vender.
+    }
+  }, [token]);
+
+  useEffect(() => {
+    cargarProductosRecientes();
+  }, [cargarProductosRecientes]);
+
+  const productosRecientes = useMemo(
+    () => idsProductosRecientes.map((id) => productosPorId.get(id)).filter((p): p is Producto => p != null),
+    [idsProductosRecientes, productosPorId]
+  );
+
   const carritoConDatos = useMemo(
     () =>
       carrito.map((linea) => {
@@ -693,6 +716,7 @@ export function Ventas() {
       });
       reiniciarVenta();
       await cargarProductos();
+      cargarProductosRecientes();
       setVentaRecienCreada(venta);
       setFacturaAbierta(true);
     } catch (err) {
@@ -724,6 +748,7 @@ export function Ventas() {
           errorProductos={errorProductos}
           token={token}
           onSeleccionarProducto={agregarProductoAlCarrito}
+          productosRecientes={productosRecientes}
         />
 
         <Card className="border-border">

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
-import { Barcode, Lightbulb, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
+import { Barcode, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -569,22 +569,23 @@ export function Inventario() {
               className="h-7 w-24 text-sm"
             />
           ) : (
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-2">
               {producto.stockActual}
-              {/* Bombillo rojo = estado crítico (sin stock, no se puede vender); amarillo =
-                  por debajo o igual al mínimo configurado (warning, todavía hay para vender
-                  pero hay que reponer pronto). Mismo criterio que ya dispara la notificación
-                  de stock bajo en la campana, así la señal es consistente en toda la app. */}
+              {/* Punto que titila (igual que un radar): rojo para estado crítico (sin stock, no
+                  se puede vender) y naranja/dorado para warning (por debajo o igual al mínimo
+                  configurado, todavía hay para vender pero hay que reponer pronto). Mismo
+                  criterio que ya dispara la notificación de stock bajo en la campana, así la
+                  señal es consistente en toda la app. */}
               {sinStock ? (
-                <Lightbulb
-                  className="h-4 w-4 shrink-0 fill-error-text text-error-text"
-                  aria-label="Crítico: sin stock disponible"
-                />
+                <span className="relative inline-flex h-2.5 w-2.5 shrink-0" role="img" aria-label="Crítico: sin stock disponible">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-error-text opacity-75 motion-reduce:hidden" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-error-text" />
+                </span>
               ) : stockBajo ? (
-                <Lightbulb
-                  className="h-4 w-4 shrink-0 fill-gold text-gold"
-                  aria-label="Warning: stock por debajo del mínimo"
-                />
+                <span className="relative inline-flex h-2.5 w-2.5 shrink-0" role="img" aria-label="Warning: stock por debajo del mínimo">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-75 motion-reduce:hidden" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gold" />
+                </span>
               ) : null}
             </span>
           )}

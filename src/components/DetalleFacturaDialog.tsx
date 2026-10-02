@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, Printer, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
+import { useLogo } from '@/context/LogoContext';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { debeAbrirCajon, imprimirRecibo } from '@/services/impresionService';
 import type { DatosEmpresaTiquete } from '@/services/impresionService';
@@ -53,6 +54,7 @@ interface DetalleFacturaDialogProps {
 
 export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFacturaDialogProps) {
   const { token } = useAuth();
+  const { logoUrl } = useLogo();
   const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
   const [datosEmpresa, setDatosEmpresa] = useState<DatosEmpresaTiquete | null>(null);
   const [imprimiendoTiquete, setImprimiendoTiquete] = useState(false);
@@ -126,9 +128,15 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
             <div id="factura-para-imprimir" className="space-y-5">
               <div className="flex items-start justify-between border-b border-border pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brand-navy font-heading text-sm font-bold tracking-wide text-gold">
-                    FG
-                  </div>
+                  {/* Antes era un bloque "FG" fijo que nunca mostraba el logo real de
+                      Configuración; ahora usa el mismo logo que ya se ve en Login y en el
+                      menú lateral, así la factura en pantalla queda consistente con el resto
+                      de la app. */}
+                  <img
+                    src={logoUrl}
+                    alt="Logo de la empresa"
+                    className="h-10 w-10 shrink-0 rounded-md border border-border object-cover"
+                  />
                   <div>
                     <p className="font-heading text-lg font-semibold text-navy">Ferretería Gold</p>
                     <p className="text-sm text-text-muted">Factura {venta.numeroFactura}</p>
