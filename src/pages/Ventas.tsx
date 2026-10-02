@@ -8,7 +8,7 @@ import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon } from '@/services/impresionService';
 import { obtenerProductos } from '@/services/inventarioService';
 import { registrarVenta } from '@/services/ventaService';
-import { crearCliente, obtenerClientePorId } from '@/services/clienteService';
+import { buscarClientes, crearCliente } from '@/services/clienteService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import type { Producto } from '@/types/inventario';
 import type { MetodoPago, MetodoPagoVenta, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
@@ -166,11 +166,19 @@ export function Ventas() {
   const [requiereFacturaElectronica, setRequiereFacturaElectronica] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [buscandoCliente, setBuscandoCliente] = useState(false);
-  // Solo se piden cuando un comprador sin registrar marca "Solicitar factura electrónica":
-  // en ese caso hay que registrarlo como Cliente (ver Cliente.Crear, que exige estos datos),
-  // no solo guardar un nombre suelto en la venta.
+  // Autocomplete de "Cliente registrado": lo que el cajero escribe (nombre o cédula) y los
+  // resultados que trae buscarClientes(). Mientras ya hay un clienteSeleccionado, estos quedan
+  // sin usar (el campo se vuelve de solo lectura con un botón para "Cambiar").
+  const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([]);
+  const [mostrarDropdownCliente, setMostrarDropdownCliente] = useState(false);
+  // Se piden cuando un comprador sin registrar marca "Solicitar factura electrónica" (ver
+  // Cliente.Crear, que exige estos datos) o cuando el cajero decide registrarlo como cliente
+  // desde acá mismo con el botón "Registrar como cliente", aunque no pida factura.
   const [direccionComprador, setDireccionComprador] = useState('');
   const [numeroIdentificacionComprador, setNumeroIdentificacionComprador] = useState('');
+  const [mostrandoRegistroCliente, setMostrandoRegistroCliente] = useState(false);
+  const [registrandoCliente, setRegistrandoCliente] = useState(false);
   const [datosFactura, setDatosFactura] = useState<DatosFacturaForm>(datosFacturaVacio);
 
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
@@ -184,34 +192,38 @@ export function Ventas() {
   const [nombreImpresora, setNombreImpresora] = useState<string | null>(null);
   const [abriendoCajon, setAbriendoCajon] = useState(false);
 
-  // Al escribir un ID de cliente válido en modo "Cliente registrado", lo busca para confirmar
-  // quién es y para saber si ya tiene datos fiscales completos (y así ofrecer "Solicitar
-  // factura electrónica" con un clic, sin tener que volver a pedirlos).
+  // En modo "Cliente registrado", busca por nombre o número de identificación a medida que el
+  // cajero escribe (solo clientes activos: uno inactivo no debería poder seleccionarse para una
+  // venta nueva). Mientras ya hay un cliente elegido no hace falta seguir buscando.
   useEffect(() => {
-    if (modoComprador !== 'registrado' || !clienteId.trim() || !Number.isInteger(Number(clienteId))) {
-      setClienteSeleccionado(null);
+    if (modoComprador !== 'registrado' || clienteSeleccionado) {
+      setResultadosCliente([]);
+      return;
+    }
+    const termino = busquedaCliente.trim();
+    if (termino.length < 2) {
+      setResultadosCliente([]);
       return;
     }
     let cancelado = false;
     setBuscandoCliente(true);
-    const idBuscado = Number(clienteId);
     const timeoutId = setTimeout(() => {
-      obtenerClientePorId(idBuscado, token)
-        .then((cliente) => {
-          if (!cancelado) setClienteSeleccionado(cliente);
+      buscarClientes(termino, token, true)
+        .then((clientes) => {
+          if (!cancelado) setResultadosCliente(clientes);
         })
         .catch(() => {
-          if (!cancelado) setClienteSeleccionado(null);
+          if (!cancelado) setResultadosCliente([]);
         })
         .finally(() => {
           if (!cancelado) setBuscandoCliente(false);
         });
-    }, 400);
+    }, 350);
     return () => {
       cancelado = true;
       clearTimeout(timeoutId);
     };
-  }, [modoComprador, clienteId, token]);
+  }, [modoComprador, busquedaCliente, clienteSeleccionado, token]);
 
   // Autocompleta los datos fiscales con los que ya tiene guardados el cliente encontrado, para
   // que el cajero no tenga que volver a escribirlos (puede corregirlos para esta venta puntual
@@ -229,6 +241,69 @@ export function Ventas() {
       emailFacturacion: clienteSeleccionado.emailFacturacion ?? '',
     });
   }, [modoComprador, clienteSeleccionado]);
+
+  function seleccionarCliente(cliente: Cliente) {
+    setClienteSeleccionado(cliente);
+    setClienteId(String(cliente.id));
+    setBusquedaCliente('');
+    setResultadosCliente([]);
+    setMostrarDropdownCliente(false);
+  }
+
+  function quitarClienteSeleccionado() {
+    setClienteSeleccionado(null);
+    setClienteId('');
+    setBusquedaCliente('');
+  }
+
+  // Registra como Cliente (origen "Caja") al comprador que se está tipeando en modo "Sin
+  // registrar", reutilizando los mismos campos que ya se piden para factura electrónica
+  // (nombre/teléfono/correo siempre visibles; identificación/dirección se revelan al pulsar
+  // este botón). Tras registrarlo, la venta sigue en modo "Cliente registrado" con él ya
+  // elegido, así que de acá en adelante usa el mismo camino que cualquier cliente existente.
+  async function handleRegistrarClienteDesdeVenta() {
+    if (!mostrandoRegistroCliente) {
+      setMostrandoRegistroCliente(true);
+      return;
+    }
+    if (
+      !nombreComprador.trim() ||
+      !numeroIdentificacionComprador.trim() ||
+      !telefonoComprador.trim() ||
+      !emailComprador.trim() ||
+      !direccionComprador.trim()
+    ) {
+      toast.error('Completa nombre, identificación, teléfono, correo y dirección para registrar el cliente.');
+      return;
+    }
+    setRegistrandoCliente(true);
+    try {
+      const creado = await crearCliente(
+        {
+          numeroIdentificacion: numeroIdentificacionComprador.trim(),
+          nombre: nombreComprador.trim(),
+          email: emailComprador.trim(),
+          telefono: telefonoComprador.trim(),
+          direccion: direccionComprador.trim(),
+          password: null,
+        },
+        token
+      );
+      toast.success(`Cliente "${creado.cliente.nombre}" registrado`, {
+        description: creado.passwordTemporal
+          ? `Contraseña temporal para la PWA: ${creado.passwordTemporal}`
+          : 'Ya puedes continuar la venta con él.',
+      });
+      setModoComprador('registrado');
+      setClienteSeleccionado(creado.cliente);
+      setClienteId(String(creado.cliente.id));
+      setMostrandoRegistroCliente(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo registrar el cliente.');
+    } finally {
+      setRegistrandoCliente(false);
+    }
+  }
 
   useEffect(() => {
     obtenerConfiguracion(token)
@@ -395,8 +470,12 @@ export function Ventas() {
     setDesglosePago(lineasDesgloseIniciales());
     setRequiereFacturaElectronica(false);
     setClienteSeleccionado(null);
+    setBusquedaCliente('');
+    setResultadosCliente([]);
+    setMostrarDropdownCliente(false);
     setDireccionComprador('');
     setNumeroIdentificacionComprador('');
+    setMostrandoRegistroCliente(false);
     setDatosFactura(datosFacturaVacio);
     setErrorFormulario(null);
     setConflictoStock(null);
@@ -435,7 +514,7 @@ export function Ventas() {
       return;
     }
     if (modoComprador === 'registrado' && (!Number.isInteger(Number(clienteId)) || Number(clienteId) <= 0)) {
-      setErrorFormulario('Ingresa un ID de cliente válido.');
+      setErrorFormulario('Busca y selecciona un cliente registrado.');
       return;
     }
     if (modoComprador === 'sinRegistro' && !nombreComprador.trim()) {
@@ -719,30 +798,63 @@ export function Ventas() {
 
             {modoComprador === 'registrado' ? (
               <div className="space-y-2">
-                <Label htmlFor="clienteId">ID del cliente</Label>
-                <Input
-                  id="clienteId"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={clienteId}
-                  onChange={(e) => setClienteId(e.target.value)}
-                  disabled={registrando}
-                  required
-                />
-                {buscandoCliente && (
-                  <p className="text-sm text-muted-foreground">Buscando cliente...</p>
-                )}
-                {!buscandoCliente && clienteSeleccionado && (
-                  <p className="text-sm text-muted-foreground">
-                    {clienteSeleccionado.nombre}
-                    {clienteSeleccionado.tieneDatosFacturacionElectronicaCompletos
-                      ? ' · Datos fiscales completos'
-                      : ' · Sin datos fiscales completos'}
-                  </p>
-                )}
-                {!buscandoCliente && !clienteSeleccionado && clienteId.trim() !== '' && (
-                  <p className="text-sm text-error-text">No se encontró un cliente con ese ID.</p>
+                <Label htmlFor="busquedaCliente">Cliente</Label>
+                {clienteSeleccionado ? (
+                  <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-navy">{clienteSeleccionado.nombre}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {clienteSeleccionado.numeroIdentificacion}
+                        {clienteSeleccionado.tieneDatosFacturacionElectronicaCompletos
+                          ? ' · Datos fiscales completos'
+                          : ' · Sin datos fiscales completos'}
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={quitarClienteSeleccionado} disabled={registrando}>
+                      Cambiar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Input
+                      id="busquedaCliente"
+                      value={busquedaCliente}
+                      onChange={(e) => {
+                        setBusquedaCliente(e.target.value);
+                        setMostrarDropdownCliente(true);
+                      }}
+                      onFocus={() => setMostrarDropdownCliente(true)}
+                      onBlur={() => setTimeout(() => setMostrarDropdownCliente(false), 150)}
+                      placeholder="Escribe el nombre o la cédula del cliente..."
+                      disabled={registrando}
+                      autoComplete="off"
+                    />
+                    {mostrarDropdownCliente && (
+                      <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg">
+                        {buscandoCliente ? (
+                          <p className="px-3 py-2 text-sm text-muted-foreground">Buscando...</p>
+                        ) : resultadosCliente.length === 0 ? (
+                          <p className="px-3 py-2 text-sm text-muted-foreground">
+                            {busquedaCliente.trim().length < 2
+                              ? 'Escribe al menos 2 letras para buscar.'
+                              : 'Sin resultados. Puedes registrarlo desde "Sin registrar".'}
+                          </p>
+                        ) : (
+                          resultadosCliente.map((cliente) => (
+                            <button
+                              key={cliente.id}
+                              type="button"
+                              onClick={() => seleccionarCliente(cliente)}
+                              className="flex w-full flex-col border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-background"
+                            >
+                              <span className="text-navy">{cliente.nombre}</span>
+                              <span className="text-muted-foreground">{cliente.numeroIdentificacion}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
@@ -760,19 +872,19 @@ export function Ventas() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="telefonoComprador">
-                      Teléfono {requiereFacturaElectronica ? '' : '(opcional)'}
+                      Teléfono {requiereFacturaElectronica || mostrandoRegistroCliente ? '' : '(opcional)'}
                     </Label>
                     <Input
                       id="telefonoComprador"
                       value={telefonoComprador}
                       onChange={(e) => setTelefonoComprador(e.target.value)}
                       disabled={registrando}
-                      required={requiereFacturaElectronica}
+                      required={requiereFacturaElectronica || mostrandoRegistroCliente}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="emailComprador">
-                      Correo {requiereFacturaElectronica ? '' : '(opcional)'}
+                      Correo {requiereFacturaElectronica || mostrandoRegistroCliente ? '' : '(opcional)'}
                     </Label>
                     <Input
                       id="emailComprador"
@@ -780,11 +892,11 @@ export function Ventas() {
                       value={emailComprador}
                       onChange={(e) => setEmailComprador(e.target.value)}
                       disabled={registrando}
-                      required={requiereFacturaElectronica}
+                      required={requiereFacturaElectronica || mostrandoRegistroCliente}
                     />
                   </div>
                 </div>
-                {requiereFacturaElectronica && (
+                {(requiereFacturaElectronica || mostrandoRegistroCliente) && (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="numeroIdentificacionComprador">Número de identificación</Label>
@@ -808,6 +920,29 @@ export function Ventas() {
                     </div>
                   </div>
                 )}
+                <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border px-3 py-2">
+                  <p className="text-sm text-muted-foreground">
+                    {mostrandoRegistroCliente
+                      ? 'Completa sus datos y guárdalo para futuras compras.'
+                      : '¿Es un cliente frecuente? Puedes registrarlo sin salir de esta venta.'}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRegistrarClienteDesdeVenta}
+                    disabled={registrando || registrandoCliente}
+                    className="shrink-0"
+                  >
+                    {registrandoCliente ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : mostrandoRegistroCliente ? (
+                      'Guardar cliente'
+                    ) : (
+                      'Registrar como cliente'
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
 

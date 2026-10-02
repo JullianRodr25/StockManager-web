@@ -33,13 +33,21 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-card p-4 shadow-lg sm:p-6 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 motion-reduce:animate-none motion-reduce:transition-none',
+        // max-h-[90vh]: antes el modal no tenía límite de alto, así que un formulario largo
+        // (ej. "Finalizar venta" con factura electrónica, o "Nuevo producto") se salía de la
+        // pantalla sin forma de desplazarse. El scroll vive en el <div> interno de abajo, no
+        // acá, para que el botón de cerrar (X) se quede fijo en la esquina en vez de
+        // desplazarse junto con el contenido. w-[calc(100%-2rem)] deja 1rem de margen a cada
+        // lado en pantallas angostas (celular), en vez de tocar los bordes.
+        'fixed left-1/2 top-1/2 z-50 grid max-h-[90vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-lg border border-border bg-card shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 motion-reduce:animate-none motion-reduce:transition-none',
         className
       )}
       {...props}
     >
-      {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-text-muted transition-colors motion-reduce:transition-none hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+      <div className="overflow-y-auto p-4 sm:p-6">
+        <div className="grid gap-4">{children}</div>
+      </div>
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm bg-card text-text-muted transition-colors motion-reduce:transition-none hover:text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <X className="h-4 w-4" />
         <span className="sr-only">Cerrar</span>
       </DialogPrimitive.Close>
