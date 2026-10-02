@@ -147,6 +147,13 @@ export function Inventario() {
   const [editandoStockId, setEditandoStockId] = useState<number | null>(null);
   const [deltaStockInput, setDeltaStockInput] = useState('');
   const [guardandoAjusteStock, setGuardandoAjusteStock] = useState(false);
+  // Ajuste de stock que el admin ya escribió (Enter en el campo) pero todavía no confirmó: se
+  // pide confirmación explícita antes de tocar el stock real, porque es un cambio directo en
+  // inventario sin pasar por una venta/movimiento normal y un error de tecleo (un cero de más,
+  // un signo equivocado) sería fácil de cometer y costoso de notar después.
+  const [pendienteAjusteStock, setPendienteAjusteStock] = useState<{ producto: Producto; delta: number } | null>(
+    null
+  );
 
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [productoParaDesactivar, setProductoParaDesactivar] = useState<Producto | null>(null);
@@ -283,12 +290,23 @@ export function Inventario() {
     setDeltaStockInput('');
   }
 
-  async function confirmarAjusteStock(producto: Producto) {
+  // Se llama al presionar Enter en el campo de ajuste: valida el número escrito y, si es
+  // válido, pasa la pregunta al AlertDialog de confirmación en vez de aplicar el cambio de
+  // una vez. El campo de edición se cierra ya mismo; si el admin cancela la confirmación,
+  // tiene que volver a hacer doble clic para intentarlo de nuevo (evita dejar un estado
+  // intermedio confuso entre "editando" y "confirmando").
+  function confirmarAjusteStock(producto: Producto) {
     const delta = Number(deltaStockInput);
-    if (deltaStockInput.trim() === '' || Number.isNaN(delta) || delta === 0) {
-      cancelarEdicionStock();
-      return;
+    const esValido = deltaStockInput.trim() !== '' && !Number.isNaN(delta) && delta !== 0;
+    cancelarEdicionStock();
+    if (esValido) {
+      setPendienteAjusteStock({ producto, delta });
     }
+  }
+
+  async function handleConfirmarAjusteStock() {
+    if (!pendienteAjusteStock) return;
+    const { producto, delta } = pendienteAjusteStock;
 
     setGuardandoAjusteStock(true);
     try {
@@ -302,7 +320,7 @@ export function Inventario() {
       toast.success(
         `Stock de "${producto.nombre}" ${delta > 0 ? 'aumentado' : 'reducido'} a ${actualizado.stockActual}`
       );
-      cancelarEdicionStock();
+      setPendienteAjusteStock(null);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'No se pudo ajustar el stock.');
     } finally {
@@ -1065,6 +1083,46 @@ export function Inventario() {
               }}
             >
               {desactivando ? 'Desactivando...' : 'Desactivar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendienteAjusteStock !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setPendienteAjusteStock(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendienteAjusteStock && pendienteAjusteStock.delta > 0 ? '¿Aumentar el stock?' : '¿Reducir el stock?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendienteAjusteStock && (
+                <>
+                  {pendienteAjusteStock.delta > 0 ? 'Vas a sumar' : 'Vas a restar'}{' '}
+                  <strong className="text-navy">{Math.abs(pendienteAjusteStock.delta)}</strong> unidades al stock de
+                  "{pendienteAjusteStock.producto.nombre}": de {pendienteAjusteStock.producto.stockActual} pasará a{' '}
+                  <strong className="text-navy">
+                    {pendienteAjusteStock.producto.stockActual + pendienteAjusteStock.delta}
+                  </strong>
+                  .
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={guardandoAjusteStock}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={guardandoAjusteStock}
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmarAjusteStock();
+              }}
+            >
+              {guardandoAjusteStock ? 'Guardando...' : 'Confirmar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

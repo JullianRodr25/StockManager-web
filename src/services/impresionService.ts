@@ -185,11 +185,11 @@ function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquet
   // simples '\n': el salto de línea "a secas" depende de la altura de línea que tenga
   // configurada la impresora en ese momento (puede variar entre modelos e incluso entre
   // trabajos de impresión), mientras que ESC d siempre avanza exactamente n líneas sin
-  // importar esa configuración. Con solo 3 saltos de línea el corte físico (GS V) todavía
-  // caía sobre "Gracias por su compra" y se la llevaba por delante; con 10 líneas de margen
-  // queda bastante espacio en blanco entre el texto y el corte, para que el mensaje se vea
-  // completo y más arriba del borde del tiquete.
-  lineas.push(ESC + 'd' + '\x0A');
+  // importar esa configuración. Con 3 líneas el corte (GS V) todavía caía sobre "Gracias por
+  // su compra"; con 10 ya no se cortaba pero dejaba demasiado espacio en blanco. 2 líneas es
+  // el punto intermedio: el margen justo para que el corte no le gane al texto, sin tanto
+  // papel en blanco de sobra.
+  lineas.push(ESC + 'd' + '\x02');
   lineas.push(GS + 'V' + '\x00'); // corte de papel
 
   // La orden de apertura del cajón se envía junto con el tiquete, en el mismo trabajo de
