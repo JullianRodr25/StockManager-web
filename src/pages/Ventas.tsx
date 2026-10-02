@@ -329,6 +329,11 @@ export function Ventas() {
   // y se confirma la venta, así que el manejo del error 409 en
   // handleConfirmarVenta debe seguir existiendo.
   function agregarProductoAlCarrito(producto: Producto) {
+    if (producto.stockActual <= 0) {
+      toast.error(`"${producto.nombre}" no tiene stock disponible.`);
+      return;
+    }
+
     const existente = carrito.find((linea) => linea.productoId === producto.id);
     const cantidadActual = existente ? Number(existente.cantidad) || 0 : 0;
 

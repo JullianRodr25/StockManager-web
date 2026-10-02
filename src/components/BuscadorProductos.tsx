@@ -39,9 +39,12 @@ export function BuscadorProductos({
   const cierreDropdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const termino = terminoBusqueda.trim().toLowerCase();
+  // Un producto sin stock no se puede vender, así que ni se ofrece en el buscador: evita que
+  // el cajero lo seleccione para encontrarse con el error de "sin stock disponible" después.
+  const productosConStock = productos.filter((producto) => producto.stockActual > 0);
   const coincidencias = termino
-    ? productos.filter((producto) => producto.nombre.toLowerCase().includes(termino))
-    : productos;
+    ? productosConStock.filter((producto) => producto.nombre.toLowerCase().includes(termino))
+    : productosConStock;
   const resultadosBusqueda = [...coincidencias]
     .sort((a, b) => a.nombre.localeCompare(b.nombre))
     .slice(0, termino ? MAX_RESULTADOS_BUSQUEDA : MAX_RESULTADOS_SIN_FILTRO);
