@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import {
   cancelarPedido,
   confirmarPedido,
@@ -283,8 +284,8 @@ export function Pedidos() {
             <TableBody>
               {cargando ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-text-muted">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
+                  <TableCell colSpan={5} className="text-center text-text-muted">
+                    <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : pedidos.length === 0 ? (
@@ -347,9 +348,7 @@ export function Pedidos() {
           </DialogHeader>
 
           {!pedidoSeleccionado ? (
-            <div className="py-8 text-center text-text-muted">
-              <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
-            </div>
+            <PantallaCargaLogo variante="en-linea" className="py-4" />
           ) : (
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-3 border-b border-border pb-4">

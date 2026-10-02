@@ -4,6 +4,7 @@ import { Barcode, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } 
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import {
   actualizarProducto,
   ajustarStock,
@@ -773,8 +774,8 @@ export function Inventario() {
                 renderFilaProducto(productoEncontradoPorCodigo)
               ) : cargando ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 10 : 8} className="py-8 text-center text-text-muted">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
+                  <TableCell colSpan={esAdmin ? 10 : 8} className="text-center text-text-muted">
+                    <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : productosFiltrados.length === 0 ? (

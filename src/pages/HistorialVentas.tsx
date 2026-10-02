@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Eye, Loader2 } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import { obtenerVentaPorId, obtenerVentas } from '@/services/ventaService';
 import type { VentaResponse, VentaResumenResponse } from '@/types/ventas';
 import { BadgeEstado, DetalleFacturaDialog, formatoFecha, formatoMoneda, nombreComprador } from '@/components/DetalleFacturaDialog';
@@ -149,7 +150,7 @@ export function HistorialVentas() {
               {cargando ? (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-text-muted">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
+                    <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : ventas.length === 0 ? (

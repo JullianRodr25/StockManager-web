@@ -3,6 +3,7 @@ import { Loader2, Printer, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { debeAbrirCajon, imprimirRecibo } from '@/services/impresionService';
 import type { DatosEmpresaTiquete } from '@/services/impresionService';
@@ -120,9 +121,7 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
         </DialogHeader>
 
         {!venta ? (
-          <div className="py-8 text-center text-text-muted">
-            <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
-          </div>
+          <PantallaCargaLogo variante="en-linea" className="py-4" />
         ) : (
           <>
             <div id="factura-para-imprimir" className="space-y-5">

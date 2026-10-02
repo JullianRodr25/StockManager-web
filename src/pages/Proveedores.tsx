@@ -5,6 +5,7 @@ import { Loader2, Pencil, Plus, Receipt, RotateCcw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import {
   activarProveedor,
   actualizarProveedor,
@@ -255,7 +256,7 @@ export function Proveedores() {
               {cargando ? (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-text-muted">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
+                    <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : proveedoresVisibles.length === 0 ? (

@@ -5,6 +5,7 @@ import { Ban, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import { obtenerProveedores } from '@/services/proveedorService';
 import {
   cancelarCuentaPorPagar,
@@ -365,8 +366,8 @@ export function CuentasPorPagar() {
             <TableBody>
               {cargando ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
+                  <TableCell colSpan={6} className="text-center text-text-muted">
+                    <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : cuentas.length === 0 ? (
@@ -488,9 +489,7 @@ export function CuentasPorPagar() {
           </DialogHeader>
 
           {cargandoDetalle || !cuentaSeleccionada ? (
-            <div className="py-8 text-center text-text-muted">
-              <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
-            </div>
+            <PantallaCargaLogo variante="en-linea" className="py-4" />
           ) : (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3">

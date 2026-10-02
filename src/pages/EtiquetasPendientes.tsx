@@ -3,6 +3,7 @@ import { Loader2, Printer, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import { generarEtiquetas, obtenerEtiquetasPendientes } from '@/services/inventarioService';
 import type { EtiquetaGenerada, EtiquetaPendiente } from '@/types/inventario';
 import { Button } from '@/components/ui/button';
@@ -102,9 +103,7 @@ export function EtiquetasPendientes() {
           )}
 
           {cargando ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-text-muted motion-reduce:animate-none" />
-            </div>
+            <PantallaCargaLogo variante="en-linea" />
           ) : pendientes.length === 0 ? (
             <p className="py-6 text-center text-sm text-text-muted">
               No hay productos con etiquetas pendientes por generar.

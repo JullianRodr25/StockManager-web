@@ -4,6 +4,7 @@ import { Loader2, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import {
   activarCliente,
   actualizarCliente,
@@ -330,8 +331,8 @@ export function Clientes() {
             <TableBody>
               {cargando ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-text-muted">
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin motion-reduce:animate-none" />
+                  <TableCell colSpan={6} className="text-center text-text-muted">
+                    <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : clientesVisibles.length === 0 ? (
