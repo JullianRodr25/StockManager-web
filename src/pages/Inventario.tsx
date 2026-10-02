@@ -27,7 +27,9 @@ import type {
   ImportarProductosErrorResponse,
   ImportarProductosResponse,
   Producto,
+  ProductoFoto,
 } from '@/types/inventario';
+import { GaleriaFotosProducto } from '@/components/GaleriaFotosProducto';
 import type { Proveedor } from '@/types/proveedores';
 import {
   AlertDialog,
@@ -363,6 +365,15 @@ export function Inventario() {
     });
     setErrorFormulario(null);
     setDialogNuevoAbierto(true);
+  }
+
+  // Mantiene en sync productoEditando (para que la galería re-renderice de inmediato) y la
+  // fila correspondiente en la lista ya cargada (para no tener que recargar toda la página).
+  function handleFotosCambiadas(fotos: ProductoFoto[]) {
+    if (!productoEditando) return;
+    const actualizado = { ...productoEditando, fotos };
+    setProductoEditando(actualizado);
+    setProductos((previo) => previo.map((p) => (p.id === actualizado.id ? actualizado : p)));
   }
 
   function cerrarDialogProducto(abierto: boolean) {
@@ -980,6 +991,14 @@ export function Inventario() {
                 cuando este producto entre en stock bajo.
               </p>
             </div>
+
+            {productoEditando && (
+              <GaleriaFotosProducto
+                productoId={productoEditando.id}
+                fotos={productoEditando.fotos}
+                onCambiar={handleFotosCambiadas}
+              />
+            )}
 
             {errorFormulario && (
               <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">

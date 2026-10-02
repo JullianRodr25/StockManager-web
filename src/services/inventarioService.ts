@@ -7,6 +7,7 @@ import type {
   GenerarEtiquetasResponse,
   ImportarProductosResponse,
   Producto,
+  ProductoFoto,
   ProductosPaginados,
 } from '../types/inventario';
 
@@ -105,6 +106,33 @@ export async function importarProductos(
   return apiRequest<ImportarProductosResponse>('/api/productos/importar', {
     method: 'POST',
     body: formData,
+    token,
+  });
+}
+
+// Galería de fotos del producto (api/productos/{id}/fotos). Depende de que el backend tenga
+// configurado Azure Blob Storage — ver ProductoFotosController en el backend.
+export async function agregarFotoProducto(
+  productoId: number,
+  archivo: File,
+  token: string | null
+): Promise<ProductoFoto> {
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+  return apiRequest<ProductoFoto>(`/api/productos/${productoId}/fotos`, {
+    method: 'POST',
+    body: formData,
+    token,
+  });
+}
+
+export async function eliminarFotoProducto(
+  productoId: number,
+  fotoId: number,
+  token: string | null
+): Promise<void> {
+  return apiRequest<void>(`/api/productos/${productoId}/fotos/${fotoId}`, {
+    method: 'DELETE',
     token,
   });
 }

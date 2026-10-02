@@ -7,6 +7,12 @@ export interface Categoria {
   nombre: string;
 }
 
+export interface ProductoFoto {
+  id: number;
+  url: string;
+  orden: number;
+}
+
 export interface Producto {
   id: number;
   nombre: string;
@@ -21,7 +27,12 @@ export interface Producto {
   // Costo de adquisición, para métricas de rentabilidad. Nunca se muestra al cliente.
   costo: number;
   proveedorId: number | null;
+  // Galería de fotos del producto (carrusel), ordenadas. Ver StockManager.Domain.Entities.Producto.MaxFotos.
+  fotos: ProductoFoto[];
 }
+
+// Máximo de fotos por producto — debe coincidir con Producto.MaxFotos en el backend.
+export const MAX_FOTOS_PRODUCTO = 6;
 
 export interface ProductosPaginados {
   data: Producto[];
