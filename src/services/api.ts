@@ -4,6 +4,19 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://localhost:7009';
 
+export const MENSAJE_ERROR_GENERICO = 'Ocurrió un error inesperado.';
+export const MENSAJE_SESION_VENCIDA = 'Tu sesión venció. Inicia sesión de nuevo para continuar.';
+
+// El cliente HTTP no conoce React ni el AuthContext (dependería de la UI desde la capa de red),
+// así que la sesión se registra desde afuera: AuthProvider inyecta aquí su "logout" y api.ts
+// solo avisa "el servidor rechazó el token". Así la regla vive en un único lugar y no se
+// repite en cada pantalla que llama a la API.
+let manejadorSesionVencida: (() => void) | null = null;
+
+export function registrarManejadorSesionVencida(manejador: (() => void) | null) {
+  manejadorSesionVencida = manejador;
+}
+
 export class ApiError extends Error {
   status: number;
   data?: unknown;
@@ -73,14 +86,29 @@ export async function apiRequest<TResponse>(
   if (!response.ok) {
     // El backend devuelve { message: "..." } en errores 400/401,
     // según lo definido en AuthController.
-    let message = 'Ocurrió un error inesperado.';
+    let message = MENSAJE_ERROR_GENERICO;
     let data: unknown;
     try {
       data = await response.json();
       message = obtenerMensajeError(data, message);
     } catch {
-      // La respuesta no tenía JSON (ej. error 500 sin body), se
-      // usa el mensaje genérico.
+      // La respuesta no tenía JSON (ej. 401 de JWT vencido, 500 sin body o una página de error
+      // HTML de Azure en un 502/503): se usa el mensaje genérico.
+    }
+
+    // Un 401 en una llamada que SÍ llevaba token significa que el JWT venció (dura 60 min) o ya
+    // no es válido. Como esa respuesta llega sin body, antes se veía como un "error inesperado"
+    // indescifrable. En el login no hay token, así que un 401 allí (credenciales malas) conserva
+    // el mensaje del backend.
+    if (response.status === 401 && token) {
+      manejadorSesionVencida?.();
+      throw new ApiError(MENSAJE_SESION_VENCIDA, response.status, data);
+    }
+
+    // Si no hay un mensaje propio del backend, se agrega el código HTTP: permite distinguir de
+    // un vistazo un 502/503 (servidor caído o reiniciando) de un 500 (bug) o un 429.
+    if (message === MENSAJE_ERROR_GENERICO) {
+      message = `${MENSAJE_ERROR_GENERICO} (HTTP ${response.status})`;
     }
     throw new ApiError(message, response.status, data);
   }

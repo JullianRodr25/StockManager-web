@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { decodeJwt, isTokenExpired } from '../services/jwt';
 import { loginEmpleado } from '../services/authService';
 import type { EmpleadoAutenticado } from '../types/auth';
-import { ApiError } from '../services/api';
+import { ApiError, registrarManejadorSesionVencida } from '../services/api';
 
 const TOKEN_STORAGE_KEY = 'stockmanager_token';
 
@@ -61,6 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUsuario(null);
   }, []);
+
+  // Cuando cualquier llamada recibe un 401 con token, api.ts avisa y se cierra la sesión:
+  // el usuario vuelve al login en vez de seguir viendo errores genéricos con un token muerto.
+  useEffect(() => {
+    registrarManejadorSesionVencida(logout);
+    return () => registrarManejadorSesionVencida(null);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ usuario, token, cargando, login, logout }}>

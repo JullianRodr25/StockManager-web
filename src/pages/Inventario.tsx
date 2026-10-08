@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
 import { Barcode, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
-import { ApiError } from '@/services/api';
+import { ApiError, MENSAJE_ERROR_GENERICO } from '@/services/api';
 import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import {
   actualizarProducto,
@@ -502,7 +502,7 @@ export function Inventario() {
       const mensaje = err instanceof ApiError ? err.message : 'No se pudo importar el archivo.';
       setResultadoImportacion(null);
       setErroresImportacion(errores);
-      setErrorImportacion(errores.length > 0 && mensaje === 'Ocurrió un error inesperado.' ? null : mensaje);
+      setErrorImportacion(errores.length > 0 && mensaje.startsWith(MENSAJE_ERROR_GENERICO) ? null : mensaje);
       setDialogImportacionAbierto(true);
       if (errores.length > 0) {
         toast.warning(`${errores.length} fila(s) con errores de importación`);
