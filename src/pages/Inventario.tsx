@@ -144,19 +144,13 @@ export function Inventario() {
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
 
-  // Ajuste rápido de stock: doble clic en "Stock actual" habilita un input chiquito donde se
-  // escribe cuánto sumar (ej. "10") o restar (ej. "-3") — para cuando llega mercancía o hay que
-  // corregir un conteo físico, sin pasar por el formulario completo de edición del producto.
-  const [editandoStockId, setEditandoStockId] = useState<number | null>(null);
-  const [deltaStockInput, setDeltaStockInput] = useState('');
+  // Modal de ajuste de stock (doble clic sobre el stock de un producto). El Aceptar/Cancelar
+  // del propio modal es la confirmación explícita antes de tocar el stock real: es un cambio
+  // directo en inventario sin pasar por una venta/movimiento normal, así que un error de
+  // tecleo (un cero de más) sería fácil de cometer y costoso de notar después.
+  const [productoStockModalId, setProductoStockModalId] = useState<number | null>(null);
+  const [nuevoStockInput, setNuevoStockInput] = useState('');
   const [guardandoAjusteStock, setGuardandoAjusteStock] = useState(false);
-  // Ajuste de stock que el admin ya escribió (Enter en el campo) pero todavía no confirmó: se
-  // pide confirmación explícita antes de tocar el stock real, porque es un cambio directo en
-  // inventario sin pasar por una venta/movimiento normal y un error de tecleo (un cero de más,
-  // un signo equivocado) sería fácil de cometer y costoso de notar después.
-  const [pendienteAjusteStock, setPendienteAjusteStock] = useState<{ producto: Producto; delta: number } | null>(
-    null
-  );
 
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [productoParaDesactivar, setProductoParaDesactivar] = useState<Producto | null>(null);
@@ -282,37 +276,42 @@ export function Inventario() {
     setErrorBusquedaCodigo(null);
   }
 
-  function iniciarEdicionStock(producto: Producto) {
+  // El modal guarda solo el id y deriva el producto de la lista viva: así, si otra venta
+  // cambia el stock mientras el modal está abierto (useSincronizacionStock), el "stock actual"
+  // y el cambio calculado se mantienen al día en vez de apoyarse en una copia vieja.
+  const productoStockModal =
+    productoStockModalId === null
+      ? null
+      : productos.find((p) => p.id === productoStockModalId) ??
+        (productoEncontradoPorCodigo?.id === productoStockModalId ? productoEncontradoPorCodigo : null);
+
+  const nuevoStockNumero = Number(nuevoStockInput);
+  const nuevoStockValido =
+    nuevoStockInput.trim() !== '' && Number.isInteger(nuevoStockNumero) && nuevoStockNumero >= 0;
+  const deltaStockModal = productoStockModal && nuevoStockValido ? nuevoStockNumero - productoStockModal.stockActual : 0;
+
+  function abrirModalStock(producto: Producto) {
     if (!esAdmin) return;
-    setEditandoStockId(producto.id);
-    setDeltaStockInput('');
+    setProductoStockModalId(producto.id);
+    setNuevoStockInput(String(producto.stockActual));
   }
 
-  function cancelarEdicionStock() {
-    setEditandoStockId(null);
-    setDeltaStockInput('');
+  function cerrarModalStock() {
+    if (guardandoAjusteStock) return;
+    setProductoStockModalId(null);
+    setNuevoStockInput('');
   }
 
-  // Se llama al presionar Enter en el campo de ajuste: valida el número escrito y, si es
-  // válido, pasa la pregunta al AlertDialog de confirmación en vez de aplicar el cambio de
-  // una vez. El campo de edición se cierra ya mismo; si el admin cancela la confirmación,
-  // tiene que volver a hacer doble clic para intentarlo de nuevo (evita dejar un estado
-  // intermedio confuso entre "editando" y "confirmando").
-  function confirmarAjusteStock(producto: Producto) {
-    const delta = Number(deltaStockInput);
-    const esValido = deltaStockInput.trim() !== '' && !Number.isNaN(delta) && delta !== 0;
-    cancelarEdicionStock();
-    if (esValido) {
-      setPendienteAjusteStock({ producto, delta });
-    }
-  }
-
-  async function handleConfirmarAjusteStock() {
-    if (!pendienteAjusteStock) return;
-    const { producto, delta } = pendienteAjusteStock;
+  async function handleConfirmarAjusteStock(e: FormEvent) {
+    e.preventDefault();
+    if (!productoStockModal || !nuevoStockValido || deltaStockModal === 0) return;
+    const producto = productoStockModal;
+    const delta = deltaStockModal;
 
     setGuardandoAjusteStock(true);
     try {
+      // El backend aplica un delta (ver ajustarStock): se calcula contra el stock más reciente
+      // que tiene la pantalla, así que el resultado final es el número que el admin escribió.
       const actualizado = await ajustarStock(producto.id, delta, token);
       setProductos((actuales) =>
         actuales.map((p) => (p.id === actualizado.id ? { ...p, stockActual: actualizado.stockActual } : p))
@@ -323,7 +322,8 @@ export function Inventario() {
       toast.success(
         `Stock de "${producto.nombre}" ${delta > 0 ? 'aumentado' : 'reducido'} a ${actualizado.stockActual}`
       );
-      setPendienteAjusteStock(null);
+      setProductoStockModalId(null);
+      setNuevoStockInput('');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'No se pudo ajustar el stock.');
     } finally {
@@ -479,7 +479,15 @@ export function Inventario() {
     setErroresImportacion([]);
     setResultadoImportacion(null);
     try {
-      const resultado = await importarProductos(archivo, token);
+      const respuesta = await importarProductos(archivo, token);
+      // Una respuesta sin cuerpo JSON (ej. un proxy o el propio Azure devolviendo otra cosa con
+      // 200) llegaba acá como undefined y rompía la pantalla; se normaliza para que siempre
+      // haya un resultado con forma válida que mostrar.
+      const resultado: ImportarProductosResponse = {
+        totalFilas: respuesta?.totalFilas ?? 0,
+        creados: respuesta?.creados ?? 0,
+        errores: Array.isArray(respuesta?.errores) ? respuesta.errores : [],
+      };
       setResultadoImportacion(resultado);
       setDialogImportacionAbierto(true);
       if (resultado.errores.length === 0) {
@@ -573,33 +581,12 @@ export function Inventario() {
           className={cn(
             'font-semibold',
             sinStock ? 'text-error-text' : stockBajo ? 'text-gold' : 'text-navy',
-            esAdmin && editandoStockId !== producto.id && 'cursor-pointer'
+            esAdmin && 'cursor-pointer select-none'
           )}
-          onDoubleClick={() => iniciarEdicionStock(producto)}
-          title={esAdmin ? 'Doble clic para ajustar el stock' : undefined}
+          onDoubleClick={() => abrirModalStock(producto)}
+          title={esAdmin ? 'Doble clic para cambiar el stock' : undefined}
         >
-          {editandoStockId === producto.id ? (
-            <Input
-              autoFocus
-              type="number"
-              step="1"
-              placeholder="+10 o -3"
-              value={deltaStockInput}
-              onChange={(e) => setDeltaStockInput(e.target.value)}
-              onBlur={cancelarEdicionStock}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  confirmarAjusteStock(producto);
-                } else if (e.key === 'Escape') {
-                  cancelarEdicionStock();
-                }
-              }}
-              disabled={guardandoAjusteStock}
-              className="h-7 w-24 text-sm"
-            />
-          ) : (
-            <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2">
               {producto.stockActual}
               {/* Punto que titila (igual que un radar): rojo para estado crítico (sin stock, no
                   se puede vender) y naranja/dorado para warning (por debajo o igual al mínimo
@@ -617,8 +604,7 @@ export function Inventario() {
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gold" />
                 </span>
               ) : null}
-            </span>
-          )}
+          </span>
         </TableCell>
         <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
         <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
@@ -747,7 +733,7 @@ export function Inventario() {
         <p className="text-xs text-text-muted">
           Columnas del Excel: Nombre, Categoría, Precio, StockInicial, StockMinimo, CodigoBarras (opcional),
           TarifaIva (opcional: vacía aplica el IVA general vigente, 0 marca el producto como exento),
-          Costo (opcional). Doble clic en "Stock actual" para ajustarlo rápido (ej. +10 o -3).
+          Costo (opcional). Doble clic en "Stock actual" para cambiarlo rápido.
         </p>
       )}
 
@@ -1108,45 +1094,73 @@ export function Inventario() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={pendienteAjusteStock !== null}
-        onOpenChange={(abierto) => {
-          if (!abierto) setPendienteAjusteStock(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendienteAjusteStock && pendienteAjusteStock.delta > 0 ? '¿Aumentar el stock?' : '¿Reducir el stock?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendienteAjusteStock && (
-                <>
-                  {pendienteAjusteStock.delta > 0 ? 'Vas a sumar' : 'Vas a restar'}{' '}
-                  <strong className="text-navy">{Math.abs(pendienteAjusteStock.delta)}</strong> unidades al stock de
-                  "{pendienteAjusteStock.producto.nombre}": de {pendienteAjusteStock.producto.stockActual} pasará a{' '}
-                  <strong className="text-navy">
-                    {pendienteAjusteStock.producto.stockActual + pendienteAjusteStock.delta}
-                  </strong>
-                  .
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={guardandoAjusteStock}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={guardandoAjusteStock}
-              onClick={(e) => {
-                e.preventDefault();
-                handleConfirmarAjusteStock();
-              }}
-            >
-              {guardandoAjusteStock ? 'Guardando...' : 'Confirmar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={productoStockModal !== null} onOpenChange={(abierto) => !abierto && cerrarModalStock()}>
+        <DialogContent>
+          <form onSubmit={handleConfirmarAjusteStock} className="grid gap-4">
+            <DialogHeader>
+              <DialogTitle>Cambiar stock</DialogTitle>
+              <DialogDescription>
+                {productoStockModal ? `"${productoStockModal.nombre}"` : ''} — escribe la cantidad que hay ahora
+                en inventario.
+              </DialogDescription>
+            </DialogHeader>
+
+            {productoStockModal && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-md border border-border p-3">
+                    <p className="text-text-muted">Stock actual</p>
+                    <p className="text-lg font-semibold text-navy">{productoStockModal.stockActual}</p>
+                  </div>
+                  <div className="rounded-md border border-border p-3">
+                    <p className="text-text-muted">Cambio</p>
+                    <p
+                      className={cn(
+                        'text-lg font-semibold',
+                        deltaStockModal > 0 ? 'text-green' : deltaStockModal < 0 ? 'text-error-text' : 'text-navy'
+                      )}
+                    >
+                      {deltaStockModal > 0 ? `+${deltaStockModal}` : deltaStockModal}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="nuevoStock">Nuevo stock</Label>
+                  <Input
+                    id="nuevoStock"
+                    autoFocus
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={nuevoStockInput}
+                    onChange={(e) => setNuevoStockInput(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    disabled={guardandoAjusteStock}
+                  />
+                  {nuevoStockInput.trim() !== '' && !nuevoStockValido && (
+                    <p className="text-xs text-error-text">Escribe un número entero de 0 en adelante.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={cerrarModalStock} disabled={guardandoAjusteStock}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="gold"
+                disabled={guardandoAjusteStock || !nuevoStockValido || deltaStockModal === 0}
+              >
+                {guardandoAjusteStock ? 'Guardando...' : 'Aceptar'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

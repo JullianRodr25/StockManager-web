@@ -64,6 +64,12 @@ export interface DatosEmpresaTiquete {
 
 const NOMBRE_EMPRESA_POR_DEFECTO = 'FERRETERIA GOLD';
 
+// Segunda línea de la dirección del negocio en el tiquete (barrio). La dirección configurada
+// en Configuración es un solo texto que no admite saltos de línea, así que el barrio se imprime
+// aparte, justo debajo. Si algún día cambia, se edita acá; si se vuelve algo que el dueño
+// quiere cambiar seguido, el paso siguiente sería hacerlo un campo más de "Datos de la empresa".
+const COMPLEMENTO_DIRECCION_EMPRESA = 'Barrio Los Alpes';
+
 let conexionEnCurso: Promise<void> | null = null;
 
 async function asegurarConexion(): Promise<void> {
@@ -117,6 +123,7 @@ function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquet
   }
   if (datosEmpresa.direccionEmpresa) {
     lineas.push(`${paraImpresora(datosEmpresa.direccionEmpresa)}\n`);
+    lineas.push(`${paraImpresora(COMPLEMENTO_DIRECCION_EMPRESA)}\n`);
   }
   if (datosEmpresa.telefonoEmpresa) {
     lineas.push(`Tel. ${paraImpresora(datosEmpresa.telefonoEmpresa)}\n`);
@@ -181,16 +188,18 @@ function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquet
   lineas.push('\n');
   lineas.push(ESC + 'a' + '\x01');
   lineas.push('Gracias por su compra\n');
-  // Antes de cortar, se avanza el papel con el comando ESC d (avanzar n líneas) en vez de
-  // simples '\n': el salto de línea "a secas" depende de la altura de línea que tenga
-  // configurada la impresora en ese momento (puede variar entre modelos e incluso entre
-  // trabajos de impresión), mientras que ESC d siempre avanza exactamente n líneas sin
-  // importar esa configuración. Con 3 líneas el corte (GS V) todavía caía sobre "Gracias por
-  // su compra"; con 10 ya no se cortaba pero dejaba demasiado espacio en blanco. 2 líneas es
-  // el punto intermedio: el margen justo para que el corte no le gane al texto, sin tanto
-  // papel en blanco de sobra.
-  lineas.push(ESC + 'd' + '\x02');
-  lineas.push(GS + 'V' + '\x00'); // corte de papel
+  // Corte de papel: GS V 66 n ("función B") es el comando que le dice a la propia impresora
+  // "avanza el papel hasta la posición de la cuchilla (más n puntos de margen) y recién ahí
+  // corta". Antes se avanzaba un número fijo de líneas (ESC d) y se cortaba con GS V 0, pero
+  // la distancia real entre el cabezal de impresión y la cuchilla depende del modelo, así que
+  // ningún número de líneas servía de forma confiable: con pocas la cuchilla cortaba encima de
+  // las últimas líneas (el tiquete salía sin "Gracias por su compra" y con el total pegado al
+  // borde), con muchas sobraba papel en blanco. Con la función B la impresora hace ese cálculo
+  // sola, para cualquier modelo. n = 24 puntos (~3 mm) deja un pequeño margen bajo la última
+  // línea. Si esta impresora no soportara la función B (poco común en las compatibles con
+  // ESC/POS), el síntoma sería que no corta o imprime caracteres sueltos; el plan B es volver a
+  // ESC d con unas 5 líneas + GS V 0.
+  lineas.push(GS + 'V' + String.fromCharCode(66) + String.fromCharCode(24));
 
   // La orden de apertura del cajón se envía junto con el tiquete, en el mismo trabajo de
   // impresión, pero solo cuando el pago fue (total o parcialmente) en efectivo: así, al
