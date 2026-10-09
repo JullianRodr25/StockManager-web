@@ -291,10 +291,9 @@ export function Ventas() {
       !nombreComprador.trim() ||
       !numeroIdentificacionComprador.trim() ||
       !telefonoComprador.trim() ||
-      !emailComprador.trim() ||
       !direccionComprador.trim()
     ) {
-      toast.error('Completa nombre, identificación, teléfono, correo y dirección para registrar el cliente.');
+      toast.error('Completa nombre, identificación, teléfono y dirección para registrar el cliente.');
       return;
     }
     setRegistrandoCliente(true);
@@ -303,7 +302,7 @@ export function Ventas() {
         {
           numeroIdentificacion: numeroIdentificacionComprador.trim(),
           nombre: nombreComprador.trim(),
-          email: emailComprador.trim(),
+          email: emailComprador.trim() || null,
           telefono: telefonoComprador.trim(),
           direccion: direccionComprador.trim(),
           password: null,
@@ -973,7 +972,7 @@ export function Ventas() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="emailComprador">
-                      Correo {requiereFacturaElectronica || mostrandoRegistroCliente ? '' : '(opcional)'}
+                      Correo {requiereFacturaElectronica ? '' : '(opcional)'}
                     </Label>
                     <Input
                       id="emailComprador"
@@ -981,7 +980,7 @@ export function Ventas() {
                       value={emailComprador}
                       onChange={(e) => setEmailComprador(e.target.value)}
                       disabled={registrando}
-                      required={requiereFacturaElectronica || mostrandoRegistroCliente}
+                      required={requiereFacturaElectronica}
                     />
                   </div>
                 </div>

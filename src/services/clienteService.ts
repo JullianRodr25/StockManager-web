@@ -5,6 +5,7 @@ import type {
   Cliente,
   ClienteCreadoResponse,
   CrearClienteRequest,
+  ImportarClientesResponse,
 } from '../types/clientes';
 
 // Sin "activo", el backend trae todos (activos e inactivos) — pensado para el panel de
@@ -75,6 +76,25 @@ export async function desactivarCliente(id: number, token: string | null): Promi
 export async function activarCliente(id: number, token: string | null): Promise<Cliente> {
   return apiRequest<Cliente>(`/api/clientes/${id}/activar`, {
     method: 'POST',
+    token,
+  });
+}
+
+/**
+ * Importa el Excel de terceros del programa contable anterior. Con `soloValidar` el backend
+ * devuelve la vista previa sin guardar nada; sin él crea los clientes, pero solo si todas las
+ * filas son válidas (todo o nada).
+ */
+export async function importarClientes(
+  archivo: File,
+  token: string | null,
+  soloValidar = false
+): Promise<ImportarClientesResponse> {
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+  return apiRequest<ImportarClientesResponse>(`/api/clientes/importar?soloValidar=${soloValidar}`, {
+    method: 'POST',
+    body: formData,
     token,
   });
 }

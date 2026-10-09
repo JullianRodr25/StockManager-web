@@ -4,6 +4,7 @@ import { Loader2, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
+import { ImportarClientes } from '@/components/ImportarClientes';
 import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import {
   activarCliente,
@@ -101,7 +102,7 @@ const tiposDocumentoFiscal: { valor: TipoDocumentoFiscal; etiqueta: string }[] =
 ];
 
 export function Clientes() {
-  const { token } = useAuth();
+  const { token, usuario } = useAuth();
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -161,7 +162,7 @@ export function Clientes() {
     setFormulario({
       numeroIdentificacion: cliente.numeroIdentificacion,
       nombre: cliente.nombre,
-      email: cliente.email,
+      email: cliente.email ?? '',
       telefono: cliente.telefono,
       direccion: cliente.direccion,
       password: '',
@@ -188,7 +189,7 @@ export function Clientes() {
     e.preventDefault();
     setErrorFormulario(null);
 
-    if (!formulario.nombre.trim() || !formulario.email.trim() || !formulario.telefono.trim() || !formulario.direccion.trim()) {
+    if (!formulario.nombre.trim() || !formulario.telefono.trim() || !formulario.direccion.trim()) {
       setErrorFormulario('Completa todos los campos obligatorios.');
       return;
     }
@@ -210,7 +211,7 @@ export function Clientes() {
       if (clienteEditando) {
         const data: ActualizarClienteRequest = {
           nombre: formulario.nombre.trim(),
-          email: formulario.email.trim(),
+          email: formulario.email.trim() || null,
           telefono: formulario.telefono.trim(),
           direccion: formulario.direccion.trim(),
         };
@@ -224,7 +225,7 @@ export function Clientes() {
         const data: CrearClienteRequest = {
           numeroIdentificacion: formulario.numeroIdentificacion.trim(),
           nombre: formulario.nombre.trim(),
-          email: formulario.email.trim(),
+          email: formulario.email.trim() || null,
           telefono: formulario.telefono.trim(),
           direccion: formulario.direccion.trim(),
           password: formulario.password.trim() || null,
@@ -295,6 +296,7 @@ export function Clientes() {
             <Switch checked={mostrarInactivos} onCheckedChange={setMostrarInactivos} />
             Mostrar inactivos
           </label>
+          {usuario?.rol === 'Admin' && <ImportarClientes token={token} onImportado={cargarClientes} />}
           <Button variant="gold" onClick={abrirDialogNuevo}>
             <Plus className="h-4 w-4" />
             Nuevo cliente
@@ -354,7 +356,7 @@ export function Clientes() {
                       </TableCell>
                       <TableCell className="text-navy">{cliente.numeroIdentificacion}</TableCell>
                       <TableCell className="text-navy">{cliente.telefono}</TableCell>
-                      <TableCell className="text-text-muted">{cliente.email}</TableCell>
+                      <TableCell className="text-text-muted">{cliente.email ?? '—'}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{cliente.origenRegistro === 'Pwa' ? 'PWA' : 'Caja'}</Badge>
                       </TableCell>
@@ -439,13 +441,12 @@ export function Clientes() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email (opcional)</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formulario.email}
                   onChange={(e) => actualizarCampoFormulario('email', e.target.value)}
-                  required
                 />
               </div>
               <div className="space-y-2">
