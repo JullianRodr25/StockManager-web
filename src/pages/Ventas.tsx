@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Loader2, Lock, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useBorradorVenta } from '@/context/BorradorVentaContext';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
 import { loginEmpleado } from '@/services/authService';
@@ -146,40 +147,40 @@ export function Ventas() {
   const [cargandoProductos, setCargandoProductos] = useState(true);
   const [errorProductos, setErrorProductos] = useState<string | null>(null);
 
-  const [carrito, setCarrito] = useState<LineaCarrito[]>([]);
+  const [carrito, setCarrito] = useBorradorVenta<LineaCarrito[]>('carrito', []);
 
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false);
-  const [modoComprador, setModoComprador] = useState<ModoComprador>(estadoInicialComprador.modoComprador);
-  const [clienteId, setClienteId] = useState(estadoInicialComprador.clienteId);
-  const [nombreComprador, setNombreComprador] = useState(estadoInicialComprador.nombreComprador);
-  const [telefonoComprador, setTelefonoComprador] = useState(estadoInicialComprador.telefonoComprador);
-  const [emailComprador, setEmailComprador] = useState(estadoInicialComprador.emailComprador);
-  const [metodoPago, setMetodoPago] = useState<MetodoPagoVenta | ''>(estadoInicialComprador.metodoPago);
-  const [montoRecibido, setMontoRecibido] = useState('');
-  const [desglosePago, setDesglosePago] = useState(lineasDesgloseIniciales());
+  const [modoComprador, setModoComprador] = useBorradorVenta<ModoComprador>('modoComprador', estadoInicialComprador.modoComprador);
+  const [clienteId, setClienteId] = useBorradorVenta('clienteId', estadoInicialComprador.clienteId);
+  const [nombreComprador, setNombreComprador] = useBorradorVenta('nombreComprador', estadoInicialComprador.nombreComprador);
+  const [telefonoComprador, setTelefonoComprador] = useBorradorVenta('telefonoComprador', estadoInicialComprador.telefonoComprador);
+  const [emailComprador, setEmailComprador] = useBorradorVenta('emailComprador', estadoInicialComprador.emailComprador);
+  const [metodoPago, setMetodoPago] = useBorradorVenta<MetodoPagoVenta | ''>('metodoPago', estadoInicialComprador.metodoPago);
+  const [montoRecibido, setMontoRecibido] = useBorradorVenta('montoRecibido', '');
+  const [desglosePago, setDesglosePago] = useBorradorVenta('desglosePago', lineasDesgloseIniciales());
   // Con Transferencia no hay forma de que el sistema confirme por sí solo que la plata ya
   // llegó (suele ser Nequi u otra pasarela aparte): el cajero debe mirar el comprobante o el
   // pantallazo y marcar esta casilla antes de poder confirmar la venta.
-  const [pagoTransferenciaRevisado, setPagoTransferenciaRevisado] = useState(false);
+  const [pagoTransferenciaRevisado, setPagoTransferenciaRevisado] = useBorradorVenta('pagoTransferenciaRevisado', false);
 
   // --- Factura electrónica ---
-  const [requiereFacturaElectronica, setRequiereFacturaElectronica] = useState(false);
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+  const [requiereFacturaElectronica, setRequiereFacturaElectronica] = useBorradorVenta('requiereFacturaElectronica', false);
+  const [clienteSeleccionado, setClienteSeleccionado] = useBorradorVenta<Cliente | null>('clienteSeleccionado', null);
   const [buscandoCliente, setBuscandoCliente] = useState(false);
   // Autocomplete de "Cliente registrado": lo que el cajero escribe (nombre o cédula) y los
   // resultados que trae buscarClientes(). Mientras ya hay un clienteSeleccionado, estos quedan
   // sin usar (el campo se vuelve de solo lectura con un botón para "Cambiar").
-  const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [busquedaCliente, setBusquedaCliente] = useBorradorVenta('busquedaCliente', '');
   const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([]);
   const [mostrarDropdownCliente, setMostrarDropdownCliente] = useState(false);
   // Se piden cuando un comprador sin registrar marca "Solicitar factura electrónica" (ver
   // Cliente.Crear, que exige estos datos) o cuando el cajero decide registrarlo como cliente
   // desde acá mismo con el botón "Registrar como cliente", aunque no pida factura.
-  const [direccionComprador, setDireccionComprador] = useState('');
-  const [numeroIdentificacionComprador, setNumeroIdentificacionComprador] = useState('');
+  const [direccionComprador, setDireccionComprador] = useBorradorVenta('direccionComprador', '');
+  const [numeroIdentificacionComprador, setNumeroIdentificacionComprador] = useBorradorVenta('numeroIdentificacionComprador', '');
   const [mostrandoRegistroCliente, setMostrandoRegistroCliente] = useState(false);
   const [registrandoCliente, setRegistrandoCliente] = useState(false);
-  const [datosFactura, setDatosFactura] = useState<DatosFacturaForm>(datosFacturaVacio);
+  const [datosFactura, setDatosFactura] = useBorradorVenta<DatosFacturaForm>('datosFactura', datosFacturaVacio);
 
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [conflictoStock, setConflictoStock] = useState<string | null>(null);

@@ -13,6 +13,7 @@ import {
   Tags,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { useBorradorVenta } from '@/context/BorradorVentaContext';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -91,9 +92,25 @@ const navLinkClasses = (isActive: boolean) =>
     isActive ? 'bg-gold/10 text-gold' : 'text-slate-300 hover:bg-white/5 hover:text-white'
   );
 
+// Insignia que avisa que hay una venta a medio hacer (ver BorradorVentaContext), para que quien
+// salió a crear un producto sepa que puede volver a ella.
+function InsigniaVentaEnCurso({ cantidad }: { cantidad: number }) {
+  if (cantidad === 0) return null;
+  return (
+    <span
+      className="ml-auto rounded-full bg-gold px-2 py-0.5 text-[11px] font-bold leading-none text-brand-navy"
+      title="Tienes una venta en curso"
+      aria-label={`Venta en curso con ${cantidad} ${cantidad === 1 ? 'producto' : 'productos'}`}
+    >
+      {cantidad}
+    </span>
+  );
+}
+
 function SidebarNav() {
   const location = useLocation();
   const { usuario } = useAuth();
+  const [carritoEnCurso] = useBorradorVenta<unknown[]>('carrito', []);
   const [expandido, setExpandido] = useState<Record<string, boolean>>({
     '/inventario': location.pathname.startsWith('/inventario'),
     '/ventas': location.pathname.startsWith('/ventas'),
@@ -121,6 +138,7 @@ function SidebarNav() {
               <NavLink to={to} className="flex flex-1 items-center gap-3">
                 <Icon className="h-4 w-4 shrink-0" />
                 {label}
+                {label === 'Ventas' && !abierto && <InsigniaVentaEnCurso cantidad={carritoEnCurso.length} />}
               </NavLink>
               <button
                 type="button"
@@ -151,6 +169,7 @@ function SidebarNav() {
                   >
                     <Tags className="h-3.5 w-3.5 shrink-0" />
                     {subItem.label}
+                    {subItem.to === '/ventas' && <InsigniaVentaEnCurso cantidad={carritoEnCurso.length} />}
                   </NavLink>
                 ))}
               </div>

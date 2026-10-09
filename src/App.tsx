@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { LogoProvider } from './context/LogoContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { StockRealtimeProvider } from './context/StockRealtimeContext';
+import { BorradorVentaProvider } from './context/BorradorVentaContext';
 import { RutaProtegida } from './components/RutaProtegida';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
@@ -29,6 +30,7 @@ function App() {
         <LogoProvider>
           <AuthProvider>
             <StockRealtimeProvider>
+              <BorradorVentaProvider>
               <Toaster position="top-right" richColors />
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -62,6 +64,7 @@ function App() {
                   <Route path="/configuracion" element={<Configuracion />} />
                 </Route>
               </Routes>
+              </BorradorVentaProvider>
             </StockRealtimeProvider>
           </AuthProvider>
         </LogoProvider>
