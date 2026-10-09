@@ -22,6 +22,8 @@ import type { Producto } from '@/types/inventario';
 import type { Cliente } from '@/types/clientes';
 import type { AbonoResponse, DetalleVentaResponse, MetodoPago, VentaResponse, VentaResumenResponse } from '@/types/ventas';
 import { BuscadorProductos } from '@/components/BuscadorProductos';
+import { ListaCuentasAbiertas } from '@/components/ListaCuentasAbiertas';
+import { ResumenCuentasAbiertas } from '@/components/ResumenCuentasAbiertas';
 import { DetalleFacturaDialog, formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
 import {
   AlertDialog,
@@ -463,138 +465,120 @@ export function FiadoPage() {
     <div className="space-y-4">
       {!cuentaAbierta && (
         <>
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-navy">Cuentas Abiertas</CardTitle>
-              <CardDescription>Cuentas con saldo pendiente actualmente.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {cargandoCuentasAbiertas ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-text-muted">
-                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-                  Cargando cuentas abiertas...
-                </div>
-              ) : errorCuentasAbiertas ? (
-                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                  {errorCuentasAbiertas}
-                </div>
-              ) : cuentasAbiertas.length === 0 ? (
-                <p className="py-8 text-center text-text-muted">No hay cuentas abiertas actualmente.</p>
-              ) : (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {cuentasAbiertas.map((resumen) => (
-                    <button
-                      key={resumen.id}
-                      type="button"
-                      onClick={() => handleCargarCuentaDesdeTarjeta(resumen)}
-                      disabled={cargandoCuentaId !== null}
-                      className="rounded-md border border-border p-4 text-left transition-colors motion-reduce:transition-none hover:border-gold hover:bg-gold/5 disabled:pointer-events-none disabled:opacity-60"
-                    >
-                      <p className="font-medium text-navy">{nombreCuenta(resumen)}</p>
-                      <p className="mt-1 text-lg font-semibold text-navy">{formatoMoneda.format(resumen.total)}</p>
-                      <p className="mt-1 text-xs text-text-muted">Abierta el {formatoFecha(resumen.fecha)}</p>
-                      {cargandoCuentaId === resumen.id && (
-                        <Loader2 className="mt-2 h-4 w-4 animate-spin text-gold motion-reduce:animate-none" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <div>
+            <h1 className="text-2xl font-semibold text-navy">Cuentas abiertas</h1>
+            <p className="mt-1 text-sm text-text-muted">
+              Clientes con saldo pendiente. Abre una cuenta nueva o continúa una existente.
+            </p>
+          </div>
 
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-navy">Abrir nueva cuenta</CardTitle>
-              <CardDescription>Busca un cliente registrado para abrir una cuenta abierta.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-                <Input
-                  value={terminoCliente}
-                  onChange={(e) => setTerminoCliente(e.target.value)}
-                  onFocus={handleEnfocarBusquedaCliente}
-                  onBlur={handleDesenfocarBusquedaCliente}
-                  placeholder="Busca por nombre o número de identificación..."
-                  className="pl-9"
-                />
-              </div>
+          {!cargandoCuentasAbiertas && !errorCuentasAbiertas && <ResumenCuentasAbiertas cuentas={cuentasAbiertas} />}
 
-              {errorBusquedaCliente && <p className="text-sm text-error-text">{errorBusquedaCliente}</p>}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+            <section aria-label="Cuentas abiertas" className="min-w-0">
+              <ListaCuentasAbiertas
+                cuentas={cuentasAbiertas}
+                cargando={cargandoCuentasAbiertas}
+                error={errorCuentasAbiertas}
+                cuentaCargandoId={cargandoCuentaId}
+                nombreDeCuenta={nombreCuenta}
+                onContinuar={handleCargarCuentaDesdeTarjeta}
+              />
+            </section>
 
-              {mostrarDropdownClientes && (
-                <div className="max-h-72 overflow-y-auto rounded-md border border-border">
-                  {buscandoClientes ? (
-                    <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-text-muted">
-                      <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-                      Buscando...
-                    </div>
-                  ) : resultadosClientes.length === 0 ? (
-                    <p className="flex items-center gap-2 px-3 py-2 text-sm text-text-muted">
-                      <Users className="h-4 w-4" />
-                      No se encontraron clientes.
-                    </p>
-                  ) : (
-                    resultadosClientes.map((cliente) => (
-                      <button
-                        key={cliente.id}
-                        type="button"
-                        onClick={() => handleSeleccionarCliente(cliente)}
-                        className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-background"
-                      >
-                        <span className="text-navy">{cliente.nombre}</span>
-                        <span className="whitespace-nowrap text-text-muted">{cliente.numeroIdentificacion}</span>
-                      </button>
-                    ))
-                  )}
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-navy">Abrir nueva cuenta</CardTitle>
+                <CardDescription>Busca un cliente registrado para abrir una cuenta abierta.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+                  <Input
+                    value={terminoCliente}
+                    onChange={(e) => setTerminoCliente(e.target.value)}
+                    onFocus={handleEnfocarBusquedaCliente}
+                    onBlur={handleDesenfocarBusquedaCliente}
+                    placeholder="Busca por nombre o número de identificación..."
+                    className="pl-9"
+                  />
                 </div>
-              )}
 
-              {clienteSeleccionado && (
-                <div className="flex items-center justify-between gap-3 rounded-md border border-gold bg-gold/10 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-navy">{clienteSeleccionado.nombre}</p>
-                    <p className="text-xs text-text-muted">{clienteSeleccionado.numeroIdentificacion}</p>
+                {errorBusquedaCliente && <p className="text-sm text-error-text">{errorBusquedaCliente}</p>}
+
+                {mostrarDropdownClientes && (
+                  <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+                    {buscandoClientes ? (
+                      <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-text-muted">
+                        <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                        Buscando...
+                      </div>
+                    ) : resultadosClientes.length === 0 ? (
+                      <p className="flex items-center gap-2 px-3 py-2 text-sm text-text-muted">
+                        <Users className="h-4 w-4" />
+                        No se encontraron clientes.
+                      </p>
+                    ) : (
+                      resultadosClientes.map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          onClick={() => handleSeleccionarCliente(cliente)}
+                          className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-background"
+                        >
+                          <span className="text-navy">{cliente.nombre}</span>
+                          <span className="whitespace-nowrap text-text-muted">{cliente.numeroIdentificacion}</span>
+                        </button>
+                      ))
+                    )}
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={handleCambiarCliente} disabled={abriendoCuenta}>
-                    Quitar
-                  </Button>
-                </div>
-              )}
+                )}
 
-              {cuentaYaAbiertaCliente && (
-                <div className="flex flex-col gap-2 rounded-md border border-gold bg-gold/10 px-3 py-2 text-sm text-navy" role="alert">
-                  <p>
-                    {cuentaYaAbiertaCliente.nombre} ya tiene una cuenta abierta. ¿Deseas continuar con ella en lugar de
-                    abrir una nueva?
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="self-start"
-                    onClick={handleContinuarCuentaExistente}
-                    disabled={cargandoCuentaExistente}
-                  >
-                    {cargandoCuentaExistente && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
-                    Continuar con la cuenta existente
-                  </Button>
-                </div>
-              )}
+                {clienteSeleccionado && (
+                  <div className="flex items-center justify-between gap-3 rounded-md border border-gold bg-gold/10 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-navy">{clienteSeleccionado.nombre}</p>
+                      <p className="text-xs text-text-muted">{clienteSeleccionado.numeroIdentificacion}</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={handleCambiarCliente} disabled={abriendoCuenta}>
+                      Quitar
+                    </Button>
+                  </div>
+                )}
 
-              <Button
-                type="button"
-                variant="gold"
-                className="w-full"
-                disabled={!clienteSeleccionado || abriendoCuenta}
-                onClick={handleAbrirCuenta}
-              >
-                {abriendoCuenta && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
-                Abrir cuenta
-              </Button>
-            </CardContent>
-          </Card>
+                {cuentaYaAbiertaCliente && (
+                  <div className="flex flex-col gap-2 rounded-md border border-gold bg-gold/10 px-3 py-2 text-sm text-navy" role="alert">
+                    <p>
+                      {cuentaYaAbiertaCliente.nombre} ya tiene una cuenta abierta. ¿Deseas continuar con ella en lugar de
+                      abrir una nueva?
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="self-start"
+                      onClick={handleContinuarCuentaExistente}
+                      disabled={cargandoCuentaExistente}
+                    >
+                      {cargandoCuentaExistente && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+                      Continuar con la cuenta existente
+                    </Button>
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  variant="gold"
+                  className="w-full"
+                  disabled={!clienteSeleccionado || abriendoCuenta}
+                  onClick={handleAbrirCuenta}
+                >
+                  {abriendoCuenta && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+                  Abrir cuenta
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
 

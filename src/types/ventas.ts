@@ -104,6 +104,8 @@ export interface VentaResumenResponse {
   total: number;
   metodoPago: string;
   numeroFactura: string;
+  /** Suma de abonos registrados (cuentas abiertas); 0 si no tiene. */
+  totalAbonado: number;
 }
 
 export interface VentasPaginadasResponse {
