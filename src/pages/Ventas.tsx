@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -1334,9 +1335,8 @@ export function Ventas() {
           <form onSubmit={handleConfirmarPasswordCajon} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password-cajon">Contraseña</Label>
-              <Input
+              <PasswordInput
                 id="password-cajon"
-                type="password"
                 autoFocus
                 value={passwordCajon}
                 onChange={(e) => setPasswordCajon(e.target.value)}

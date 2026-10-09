@@ -8,6 +8,7 @@ import { ApiError } from '../services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 
 export function Login() {
@@ -77,9 +78,8 @@ export function Login() {
                 <Label htmlFor="password" className="text-navy">
                   Contraseña
                 </Label>
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"

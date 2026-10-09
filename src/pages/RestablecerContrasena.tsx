@@ -6,7 +6,7 @@ import { ApiError } from '../services/api';
 import { restablecerContrasena } from '../services/authService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 
 export function RestablecerContrasena() {
@@ -79,9 +79,8 @@ export function RestablecerContrasena() {
                 <Label htmlFor="nuevaPassword" className="text-navy">
                   Nueva contraseña
                 </Label>
-                <Input
+                <PasswordInput
                   id="nuevaPassword"
-                  type="password"
                   value={nuevaPassword}
                   onChange={(e) => setNuevaPassword(e.target.value)}
                   autoComplete="new-password"
@@ -93,9 +92,8 @@ export function RestablecerContrasena() {
                 <Label htmlFor="confirmarPassword" className="text-navy">
                   Confirmar contraseña
                 </Label>
-                <Input
+                <PasswordInput
                   id="confirmarPassword"
-                  type="password"
                   value={confirmarPassword}
                   onChange={(e) => setConfirmarPassword(e.target.value)}
                   autoComplete="new-password"
