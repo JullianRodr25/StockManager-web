@@ -5,6 +5,8 @@
 export interface Categoria {
   id: number;
   nombre: string;
+  // Productos ligados a la categoría (la API lo calcula; ver CategoriaResponse en el backend).
+  cantidadProductos: number;
 }
 
 export interface ProductoFoto {

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { ImagePlus, Loader2, RotateCcw } from 'lucide-react';
+import { ImagePlus, Loader2, RotateCcw, Tags } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
 import { ApiError } from '@/services/api';
 import { actualizarConfiguracion, obtenerConfiguracion } from '@/services/configuracionService';
 import type { ConfiguracionGeneral } from '@/types/configuracion';
+import { CategoriasDialog } from '@/components/CategoriasDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,8 @@ export function Configuracion() {
   const { usuario, token } = useAuth();
   const esAdmin = usuario?.rol === 'Admin';
   const { logoUrl, esLogoPersonalizado, actualizarLogo, restaurarLogoPredeterminado } = useLogo();
+
+  const [dialogCategoriasAbierto, setDialogCategoriasAbierto] = useState(false);
 
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const [cargandoLogo, setCargandoLogo] = useState(false);
@@ -383,6 +386,23 @@ export function Configuracion() {
         </CardContent>
       </Card>
 
+      {esAdmin && (
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-navy">Categorías de productos</CardTitle>
+            <CardDescription>
+              Maestro de categorías. Los productos y la importación de Excel solo aceptan las categorías que
+              estén aquí.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button type="button" variant="gold" onClick={() => setDialogCategoriasAbierto(true)}>
+              <Tags className="h-4 w-4" /> Categorías
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/*
         A diferencia de las tarjetas de arriba (que muestran una vista de solo lectura a
         Empleado), esta tarjeta no se muestra en absoluto si no eres Admin: el backend
@@ -598,6 +618,10 @@ export function Configuracion() {
       <Separator />
 
       <p className="text-sm text-text-muted">Más ajustes próximamente.</p>
+
+      {esAdmin && (
+        <CategoriasDialog abierto={dialogCategoriasAbierto} onCambiarAbierto={setDialogCategoriasAbierto} />
+      )}
     </div>
   );
 }

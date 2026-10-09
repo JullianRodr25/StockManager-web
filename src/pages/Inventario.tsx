@@ -731,7 +731,8 @@ export function Inventario() {
 
       {esAdmin && (
         <p className="text-xs text-text-muted">
-          Columnas del Excel: Nombre, Categoría, Precio, StockInicial, StockMinimo, CodigoBarras (opcional),
+          Columnas del Excel: Nombre, Categoría (debe existir en Configuración → Categorías; si alguna no
+          existe, el archivo completo se rechaza), Precio, StockInicial, StockMinimo, CodigoBarras (opcional),
           TarifaIva (opcional: vacía aplica el IVA general vigente, 0 marca el producto como exento),
           Costo (opcional). Doble clic en "Stock actual" para cambiarlo rápido.
         </p>
@@ -1048,7 +1049,7 @@ export function Inventario() {
                   <TableBody>
                     {(resultadoImportacion?.errores ?? erroresImportacion).map((error) => (
                       <TableRow key={`${error.fila}-${error.mensaje}`}>
-                        <TableCell className="text-navy">{error.fila}</TableCell>
+                        <TableCell className="text-navy">{error.fila > 0 ? error.fila : 'General'}</TableCell>
                         <TableCell className="text-error-text">{error.mensaje}</TableCell>
                       </TableRow>
                     ))}
