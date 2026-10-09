@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Barcode } from 'lucide-react';
 import { ApiError } from '@/services/api';
@@ -42,6 +42,22 @@ export function BuscadorProductos({
   const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
   const cierreDropdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const estabaBloqueadoRef = useRef(false);
+
+  // El campo se deshabilita mientras se consulta el código o se recarga el catálogo, y un input
+  // deshabilitado pierde el foco. Al volver a habilitarse se lo devolvemos para que el cajero
+  // pueda escanear el siguiente producto sin tocar el mouse.
+  const bloqueado = disabled || buscandoCodigo || cargandoProductos;
+  useEffect(() => {
+    // Solo si el foco se perdió por el bloqueo (queda en <body>): si el usuario ya está
+    // escribiendo en otro campo (ej. una cantidad), no se le quita.
+    const foco = document.activeElement;
+    if (estabaBloqueadoRef.current && !bloqueado && (!foco || foco === document.body)) {
+      enfocarCampo();
+    }
+    estabaBloqueadoRef.current = bloqueado;
+  }, [bloqueado]);
 
   const termino = terminoBusqueda.trim().toLowerCase();
   // Un producto sin stock no se puede vender, así que ni se ofrece en el buscador: evita que
@@ -79,14 +95,26 @@ export function BuscadorProductos({
     }
   }
 
+  // Foco programático: no debe reabrir el dropdown (el onFocus lo abre solo cuando el usuario
+  // entra al campo). El evento focus se dispara de forma síncrona dentro de focus().
+  const omitirAperturaRef = useRef(false);
+  function enfocarCampo() {
+    omitirAperturaRef.current = true;
+    inputRef.current?.focus();
+    omitirAperturaRef.current = false;
+  }
+
   function handleSeleccionarResultado(producto: Producto) {
     onSeleccionarProducto(producto);
     setTerminoBusqueda('');
     setErrorBusqueda(null);
     setMostrarDropdown(false);
+    // El clic en el resultado movió el foco al botón; se devuelve al campo para seguir escaneando.
+    enfocarCampo();
   }
 
   function handleEnfocarBusqueda() {
+    if (omitirAperturaRef.current) return;
     if (cierreDropdownRef.current) {
       clearTimeout(cierreDropdownRef.current);
       cierreDropdownRef.current = null;
@@ -110,6 +138,7 @@ export function BuscadorProductos({
         <div className="relative">
           <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
           <Input
+            ref={inputRef}
             value={terminoBusqueda}
             onChange={(e) => {
               setTerminoBusqueda(e.target.value);
@@ -119,7 +148,7 @@ export function BuscadorProductos({
             onFocus={handleEnfocarBusqueda}
             onBlur={handleDesenfocarBusqueda}
             placeholder="Escanea el código o escribe el nombre del producto..."
-            disabled={disabled || buscandoCodigo || cargandoProductos}
+            disabled={bloqueado}
             className="pl-9"
             autoFocus
           />

@@ -5,13 +5,17 @@
 // WebSocket local (normalmente wss://localhost:8181 o ws://localhost:8182) que este
 // servicio usa para mandarle los comandos ESC/POS crudos.
 import qz from 'qz-tray';
-import { formatoFecha } from '@/components/DetalleFacturaDialog';
+import { montoEnLetras } from '@/utils/numeroALetras';
 import type { FacturaDocumento } from '@/types/facturaDocumento';
 import type { VentaResponse } from '@/types/ventas';
 
 const ESC = '\x1B';
 const GS = '\x1D';
-const ANCHO_TICKET = 32; // columnas para una impresora de 58mm; en 80mm sobra espacio pero se ve bien igual.
+// Columnas del tiquete. Papel de 80 mm: el área imprimible es ~72 mm (576 puntos) y con la
+// fuente A (12 puntos por carácter) caben 48 columnas, es decir ~90 % del ancho del papel.
+// Si alguna impresora cortara el borde derecho (hay modelos de 512 puntos = 42 columnas),
+// bajar este valor es lo único que hay que tocar: todo el diseño se calcula a partir de él.
+const ANCHO_TICKET = 48;
 
 // La impresora térmica solo entiende una página de código de un solo byte (normalmente
 // CP437), no UTF-8. Cualquier carácter fuera de ese rango (tildes, "ñ", o incluso el espacio
@@ -27,13 +31,6 @@ function paraImpresora(texto: string): string {
     .replace(/[  -​ ]/g, ' ') // espacios "raros" (el que Intl mete en "3:25 a. m." o en montos en moneda) → espacio normal
     // eslint-disable-next-line no-control-regex
     .replace(/[^\x00-\x7F]/g, '?'); // cualquier otro carácter no-ASCII que se cuele (emojis, comillas tipográficas, etc.)
-}
-
-// Formato de moneda propio para el tiquete (ASCII puro): "$700.000". A diferencis del
-// formatoMoneda que usa la pantalla (Intl.NumberFormat en modo "currency"), este no inserta
-// el espacio especial entre "$" y el número que rompía la impresión.
-function formatoMonedaTicket(valor: number): string {
-  return `$${valor.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 // Comando estándar de apertura de cajón (ESC p m t1 t2), el mismo que usan casi todas
@@ -53,6 +50,7 @@ export function debeAbrirCajon(venta: VentaResponse): boolean {
 }
 
 const NOMBRE_EMPRESA_POR_DEFECTO = 'FERRETERIA GOLD';
+const NOMBRE_SISTEMA = 'StockManager POS';
 
 let conexionEnCurso: Promise<void> | null = null;
 
@@ -74,11 +72,6 @@ async function asegurarConexion(): Promise<void> {
   }
 }
 
-function lineaDosColumnas(izquierda: string, derecha: string, ancho: number = ANCHO_TICKET): string {
-  const espacio = Math.max(ancho - izquierda.length - derecha.length, 1);
-  return izquierda + ' '.repeat(espacio) + derecha + '\n';
-}
-
 // Parte un texto largo (resolución DIAN, texto legal) en renglones del ancho del tiquete,
 // cortando por palabras para no partirlas a la mitad.
 function envolverTexto(texto: string, ancho: number = ANCHO_TICKET): string[] {
@@ -93,115 +86,240 @@ function envolverTexto(texto: string, ancho: number = ANCHO_TICKET): string[] {
     }
   }
   if (actual) renglones.push(actual);
-  return renglones;
+  // Una "palabra" más larga que el ancho (códigos, nombres sin espacios) se parte a la fuerza
+  // para que nunca rompa un recuadro ni se desborde a la línea siguiente de la impresora.
+  return renglones.flatMap((renglon) => {
+    const trozos: string[] = [];
+    for (let i = 0; i < renglon.length; i += ancho) trozos.push(renglon.slice(i, i + ancho));
+    return trozos.length ? trozos : [''];
+  });
+}
+
+// ---------------------------------------------------------------------------------------
+// Diseño del tiquete (80 mm, ANCHO_TICKET columnas). Recuadros y tablas con ASCII puro
+// (+ - |) porque la impresora no garantiza una página de código con caracteres de línea.
+// ---------------------------------------------------------------------------------------
+const NORMAL = ESC + '!' + '\x00';
+const NEGRITA = ESC + '!' + '\x08';
+const GRANDE = ESC + '!' + '\x18'; // negrita + doble alto (el ancho en columnas no cambia)
+
+// Anchos de las columnas de la tabla de productos (suman ANCHO_TICKET con las 5 barras).
+const COL_CANT = 5;
+const COL_VALOR = 10;
+const COL_TOTAL = 10;
+const COL_DESC = ANCHO_TICKET - 5 - COL_CANT - COL_VALOR - COL_TOTAL;
+
+// Medios de pago: dos columnas (3 barras).
+const COL_PAGO_VALOR = 16;
+const COL_PAGO_MEDIO = ANCHO_TICKET - 3 - COL_PAGO_VALOR;
+
+const numero = (valor: number) =>
+  valor.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+const centrarEn = (texto: string, ancho: number) => {
+  const sobra = Math.max(ancho - texto.length, 0);
+  const izquierda = Math.floor(sobra / 2);
+  return ' '.repeat(izquierda) + texto + ' '.repeat(sobra - izquierda);
+};
+
+const derechaEn = (texto: string, ancho: number) => texto.slice(-ancho).padStart(ancho);
+
+const bordeCaja = () => '+' + '-'.repeat(ANCHO_TICKET - 2) + '+\n';
+
+const separadorColumnas = (...anchos: number[]) => '+' + anchos.map((a) => '-'.repeat(a)).join('+') + '+\n';
+
+function filaCaja(texto: string): string {
+  return '| ' + texto.padEnd(ANCHO_TICKET - 4) + ' |\n';
+}
+
+function filaCajaDos(izquierda: string, derecha: string): string {
+  const espacio = Math.max(ANCHO_TICKET - 4 - izquierda.length - derecha.length, 1);
+  return '| ' + izquierda + ' '.repeat(espacio) + derecha + ' |\n';
+}
+
+// Fila de totales fuera de recuadro: etiqueta a la izquierda, "$" fijo y el monto pegado a la derecha.
+function filaMonto(etiqueta: string, valor: number): string {
+  const ancho = ANCHO_TICKET - 18;
+  return etiqueta.slice(0, ancho).padEnd(ancho) + '$' + derechaEn(numero(valor), 17);
+}
+
+function fechaHoraTiquete(fechaIso: string): { fecha: string; hora: string } {
+  const fecha = new Date(fechaIso);
+  const zona = 'America/Bogota';
+  return {
+    fecha: fecha.toLocaleDateString('es-CO', { timeZone: zona, day: '2-digit', month: '2-digit', year: 'numeric' }),
+    hora: fecha.toLocaleTimeString('es-CO', { timeZone: zona, hour: '2-digit', minute: '2-digit', hour12: true }),
+  };
 }
 
 function construirTiquete(venta: VentaResponse, doc: FacturaDocumento): string[] {
   const lineas: string[] = [];
-  const centrado = (texto: string) => envolverTexto(texto).forEach((r) => lineas.push(`${r}\n`));
-  const separador = () => lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+  const texto = (t: string) => lineas.push(t);
+  const centrados = (t: string) =>
+    envolverTexto(t).forEach((r) => texto(centrarEn(r, ANCHO_TICKET).trimEnd() + '\n'));
   const { emisor, comprador } = doc;
+  const { fecha, hora } = fechaHoraTiquete(doc.fecha);
 
-  // --- Encabezado: datos del emisor (negocio), todo tomado de Configuración ---
-  lineas.push(ESC + '@'); // reset de la impresora
-  lineas.push(ESC + 'a' + '\x01'); // centrar
-  lineas.push(ESC + '!' + '\x18'); // negrita + doble alto/ancho
-  lineas.push(`${paraImpresora(emisor.nombre || NOMBRE_EMPRESA_POR_DEFECTO)}\n`);
-  lineas.push(ESC + '!' + '\x00'); // texto normal
-  if (emisor.nit) centrado(`NIT ${emisor.nit}`);
-  if (emisor.responsabilidadIva) centrado(emisor.responsabilidadIva);
-  if (emisor.actividadEconomica) centrado(`Act. economica: ${emisor.actividadEconomica}`);
-  if (emisor.direccion) centrado(emisor.direccion);
-  if (emisor.barrio) centrado(emisor.barrio);
-  if (emisor.ciudad) centrado(emisor.ciudad);
-  if (emisor.telefono) centrado(`Tel. ${emisor.telefono}`);
-  if (emisor.email) centrado(emisor.email);
-  if (emisor.resolucionDianTexto) centrado(emisor.resolucionDianTexto);
-  separador();
+  texto(ESC + '@'); // reset de la impresora
+  texto(ESC + 'a' + '\x00'); // todo el diseño ocupa el ancho completo: alineado a la izquierda
 
-  // --- Factura, fecha, vendedor y cliente ---
-  lineas.push(ESC + 'a' + '\x00'); // alinear a la izquierda
-  lineas.push(`Factura ${paraImpresora(doc.numero)}\n`);
-  lineas.push(`${paraImpresora(formatoFecha(doc.fecha))}\n`);
-  if (doc.vendedor) lineas.push(`Vendedor: ${paraImpresora(doc.vendedor)}\n`);
-  lineas.push(`Cliente: ${paraImpresora(comprador.nombre)}\n`);
-  if (comprador.documento) {
-    lineas.push(`${paraImpresora(comprador.tipoDocumento ?? 'Doc.')}: ${paraImpresora(comprador.documento)}\n`);
+  // --- Recuadro con el nombre del negocio (Configuración) ---
+  texto(bordeCaja());
+  texto(GRANDE);
+  for (const r of envolverTexto(emisor.nombre || NOMBRE_EMPRESA_POR_DEFECTO, ANCHO_TICKET - 4)) {
+    texto('| ' + centrarEn(r, ANCHO_TICKET - 4) + ' |\n');
   }
-  if (comprador.direccion) lineas.push(`Dir: ${paraImpresora(comprador.direccion)}\n`);
-  if (comprador.telefono) lineas.push(`Tel: ${paraImpresora(comprador.telefono)}\n`);
-  separador();
+  texto(NORMAL);
+  texto(bordeCaja());
 
-  // --- Productos ---
+  // --- Datos fiscales del emisor, centrados ---
+  if (emisor.nit) centrados(`NIT: ${emisor.nit}`);
+  if (emisor.responsabilidadIva) centrados(emisor.responsabilidadIva);
+  if (emisor.actividadEconomica) centrados(`Act. economica: ${emisor.actividadEconomica}`);
+  if (emisor.direccion) centrados(emisor.direccion);
+  if (emisor.barrio) centrados(emisor.barrio);
+  if (emisor.ciudad) centrados(emisor.ciudad);
+  if (emisor.telefono) centrados(`TELEFONO: ${emisor.telefono}`);
+  if (emisor.email) centrados(emisor.email);
+  if (emisor.resolucionDianTexto) centrados(emisor.resolucionDianTexto);
+  texto('\n');
+
+  // --- Recuadro: factura, fecha/hora y forma de pago ---
+  texto(bordeCaja());
+  texto(NEGRITA);
+  texto(filaCajaDos('FACTURA POS', paraImpresora(doc.numero)));
+  texto(NORMAL);
+  texto(filaCajaDos(`FECHA: ${fecha}`, paraImpresora(`HORA: ${hora}`)));
+  const formaPago = doc.pagos.map((p) => p.metodoPago.toUpperCase()).join(' / ');
+  if (formaPago) texto(filaCaja(paraImpresora(`FORMA PAGO: ${formaPago}`).slice(0, ANCHO_TICKET - 4)));
+  texto(bordeCaja());
+
+  // --- Cliente: sin recuadro, centrado entre dos líneas finas para no recargar el tiquete ---
+  texto('-'.repeat(ANCHO_TICKET) + '\n');
+  texto(NEGRITA);
+  centrados('CLIENTE');
+  texto(NORMAL);
+  const datosCliente = [
+    comprador.nombre,
+    comprador.documento ? `${comprador.tipoDocumento ?? 'Doc.'}: ${comprador.documento}` : null,
+    comprador.direccion ? `Dir: ${comprador.direccion}` : null,
+    comprador.telefono ? `Tel: ${comprador.telefono}` : null,
+  ].filter((d): d is string => !!d);
+  datosCliente.forEach((dato) => centrados(dato));
+  texto('-'.repeat(ANCHO_TICKET) + '\n');
+  texto('\n');
+
+  // --- Tabla de productos ---
+  const anchos = [COL_DESC, COL_CANT, COL_VALOR, COL_TOTAL];
+  texto(separadorColumnas(...anchos));
+  texto(NEGRITA);
+  texto(
+    '|' + centrarEn('DESCRIPCION', COL_DESC) + '|' + centrarEn('CANT', COL_CANT) + '|' +
+      centrarEn('VALOR', COL_VALOR) + '|' + centrarEn('TOTAL', COL_TOTAL) + '|\n'
+  );
+  texto(NORMAL);
+  texto(separadorColumnas(...anchos));
   for (const linea of doc.lineas) {
-    lineas.push(`${paraImpresora(linea.producto)}\n`);
-    lineas.push(
-      lineaDosColumnas(
-        `  ${linea.cantidad} x ${formatoMonedaTicket(linea.precioUnitario)}`,
-        formatoMonedaTicket(linea.total)
-      )
-    );
+    const descripcion = envolverTexto(linea.producto, COL_DESC);
+    descripcion.forEach((parte, i) => {
+      const primera = i === 0;
+      texto(
+        '|' + parte.padEnd(COL_DESC) + '|' +
+          (primera ? derechaEn(numero(linea.cantidad), COL_CANT - 1) + ' ' : ' '.repeat(COL_CANT)) + '|' +
+          (primera ? derechaEn(numero(linea.precioUnitario), COL_VALOR - 1) + ' ' : ' '.repeat(COL_VALOR)) + '|' +
+          (primera ? derechaEn(numero(linea.total), COL_TOTAL - 1) + ' ' : ' '.repeat(COL_TOTAL)) + '|\n'
+      );
+    });
   }
+  texto(separadorColumnas(...anchos));
+  texto('\n');
 
-  separador();
-
-  // --- Base e IVA por tarifa, y total ---
-  lineas.push(lineaDosColumnas('SUBTOTAL', formatoMonedaTicket(doc.subtotalBase)));
-  for (const fila of doc.resumenIva.filter((r) => r.tarifa > 0)) {
-    lineas.push(lineaDosColumnas(`Base IVA ${fila.tarifa}%`, formatoMonedaTicket(fila.base)));
-    lineas.push(lineaDosColumnas(`IVA ${fila.tarifa}%`, formatoMonedaTicket(fila.iva)));
-  }
-  lineas.push(ESC + '!' + '\x08'); // negrita
-  lineas.push(lineaDosColumnas('TOTAL', formatoMonedaTicket(doc.total)));
-  lineas.push(ESC + '!' + '\x00');
-
-  // --- Pago ---
-  for (const pago of doc.pagos) {
-    lineas.push(lineaDosColumnas(paraImpresora(pago.metodoPago), formatoMonedaTicket(pago.monto)));
-  }
-  if (doc.montoRecibido != null) {
-    lineas.push(lineaDosColumnas('Recibido', formatoMonedaTicket(doc.montoRecibido)));
-    lineas.push(lineaDosColumnas('Cambio', formatoMonedaTicket(doc.cambio ?? 0)));
-  }
-
-  if (venta.requiereFacturaElectronica) {
-    separador();
-    lineas.push('Factura electronica solicitada\n');
-    if (venta.estadoFacturaElectronica === 'Pendiente') {
-      lineas.push('Pendiente de envio a la DIAN\n');
+  // --- Subtotal, IVA y total ---
+  texto(NEGRITA);
+  texto(filaMonto('SUBTOTAL', doc.subtotalBase) + '\n');
+  const conIva = doc.resumenIva.filter((r) => r.tarifa > 0);
+  if (conIva.length === 0) {
+    texto(filaMonto('IMPUESTO - IVA', 0) + '\n');
+  } else {
+    for (const fila of conIva) {
+      // Con una sola tarifa la base es el SUBTOTAL; solo se detalla cuando hay varias.
+      if (conIva.length > 1) texto(filaMonto(`BASE IVA ${fila.tarifa}%`, fila.base) + '\n');
+      texto(filaMonto(`IMPUESTO - IVA ${fila.tarifa}%`, fila.iva) + '\n');
     }
   }
+  texto(GRANDE);
+  texto(filaMonto('TOTAL', doc.total) + '\n');
+  texto(NORMAL);
+  envolverTexto(montoEnLetras(doc.total)).forEach((r) => texto(r + '\n'));
+  texto('\n');
+
+  if (doc.montoRecibido != null) {
+    texto(NEGRITA);
+    texto(filaMonto('RECIBIDO', doc.montoRecibido) + '\n');
+    texto(filaMonto('VUELTOS', doc.cambio ?? 0) + '\n');
+    texto(NORMAL);
+    texto('\n');
+  }
+
+  // --- Medios de pago ---
+  texto(bordeCaja());
+  texto(NEGRITA);
+  texto(filaCaja(centrarEn('MEDIOS DE PAGO', ANCHO_TICKET - 4)));
+  texto(separadorColumnas(COL_PAGO_MEDIO, COL_PAGO_VALOR));
+  texto('|' + centrarEn('MEDIO DE PAGO', COL_PAGO_MEDIO) + '|' + centrarEn('VALOR', COL_PAGO_VALOR) + '|\n');
+  texto(NORMAL);
+  texto(separadorColumnas(COL_PAGO_MEDIO, COL_PAGO_VALOR));
+  for (const pago of doc.pagos) {
+    texto(
+      '|' + (' ' + paraImpresora(pago.metodoPago).toUpperCase()).slice(0, COL_PAGO_MEDIO).padEnd(COL_PAGO_MEDIO) + '|' +
+        derechaEn(numero(pago.monto), COL_PAGO_VALOR - 1) + ' |\n'
+    );
+  }
+  texto(separadorColumnas(COL_PAGO_MEDIO, COL_PAGO_VALOR));
+  texto('\n');
+
+  if (venta.requiereFacturaElectronica) {
+    centrados('Factura electronica solicitada');
+    if (venta.estadoFacturaElectronica === 'Pendiente') centrados('Pendiente de envio a la DIAN');
+    texto('\n');
+  }
+
+  // --- Vendedor y cierre ---
+  if (doc.vendedor) {
+    centrados('ATENDIDO POR');
+    texto(NEGRITA);
+    centrados(doc.vendedor);
+    texto(NORMAL);
+    texto('\n');
+  }
+  texto(NEGRITA);
+  centrados('GRACIAS POR SU COMPRA');
+  texto(NORMAL);
 
   // --- Pie: textos legales y política de cambios (configurables) ---
   if (doc.textoLegal || doc.politicaCambios) {
-    separador();
-    if (doc.textoLegal) envolverTexto(doc.textoLegal).forEach((r) => lineas.push(`${r}\n`));
-    if (doc.politicaCambios) envolverTexto(doc.politicaCambios).forEach((r) => lineas.push(`${r}\n`));
+    texto('\n');
+    if (doc.textoLegal) centrados(doc.textoLegal);
+    if (doc.politicaCambios) centrados(doc.politicaCambios);
   }
 
-  lineas.push('\n');
-  lineas.push(ESC + 'a' + '\x01');
-  lineas.push('Gracias por su compra\n');
-  // Corte de papel: GS V 66 n ("función B") es el comando que le dice a la propia impresora
-  // "avanza el papel hasta la posición de la cuchilla (más n puntos de margen) y recién ahí
-  // corta". Antes se avanzaba un número fijo de líneas (ESC d) y se cortaba con GS V 0, pero
-  // la distancia real entre el cabezal de impresión y la cuchilla depende del modelo, así que
-  // ningún número de líneas servía de forma confiable: con pocas la cuchilla cortaba encima de
-  // las últimas líneas (el tiquete salía sin "Gracias por su compra" y con el total pegado al
-  // borde), con muchas sobraba papel en blanco. Con la función B la impresora hace ese cálculo
-  // sola, para cualquier modelo. n = 24 puntos (~3 mm) deja un pequeño margen bajo la última
-  // línea. Si esta impresora no soportara la función B (poco común en las compatibles con
-  // ESC/POS), el síntoma sería que no corta o imprime caracteres sueltos; el plan B es volver a
-  // ESC d con unas 5 líneas + GS V 0.
-  lineas.push(GS + 'V' + String.fromCharCode(66) + String.fromCharCode(24));
+  // Firma del sistema, al final de todo.
+  texto('\n');
+  texto(NEGRITA);
+  centrados(NOMBRE_SISTEMA);
+  texto(NORMAL);
 
-  // La orden de apertura del cajón se envía junto con el tiquete, en el mismo trabajo de
-  // impresión, pero solo cuando el pago fue (total o parcialmente) en efectivo: así, al
-  // imprimir la factura, el cajón se abre automáticamente igual que en el sistema anterior
-  // de Julian, pero ya no se abre para Tarjeta o Transferencia, donde no hay efectivo que
-  // organizar.
+  texto('\n');
+  // Corte de papel: GS V 66 n ("función B") hace que la propia impresora avance hasta la
+  // cuchilla (más n puntos de margen) y recién ahí corte, sin depender del modelo. n = 24
+  // puntos (~3 mm) deja un pequeño margen bajo la última línea. Si una impresora no soportara
+  // la función B, el síntoma sería que no corta; el plan B es ESC d con ~5 líneas + GS V 0.
+  texto(GS + 'V' + String.fromCharCode(66) + String.fromCharCode(24));
+
+  // La orden de apertura del cajón va en el mismo trabajo de impresión, solo cuando el pago
+  // fue (total o parcialmente) en efectivo.
   if (debeAbrirCajon(venta)) {
-    lineas.push(ABRIR_CAJON);
+    texto(ABRIR_CAJON);
   }
 
   return lineas;
