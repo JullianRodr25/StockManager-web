@@ -33,7 +33,7 @@ function paraImpresora(texto: string): string {
 // formatoMoneda que usa la pantalla (Intl.NumberFormat en modo "currency"), este no inserta
 // el espacio especial entre "$" y el número que rompía la impresión.
 function formatoMonedaTicket(valor: number): string {
-  return `$${Math.round(valor).toLocaleString('es-CO')}`;
+  return `$${valor.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 // Comando estándar de apertura de cajón (ESC p m t1 t2), el mismo que usan casi todas

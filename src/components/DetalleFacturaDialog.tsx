@@ -18,7 +18,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 export const formatoMoneda = new Intl.NumberFormat('es-CO', {
   style: 'currency',
   currency: 'COP',
-  maximumFractionDigits: 0,
+  // Sin decimales cuando el valor es entero ($1.500) y hasta 2 cuando los tiene ($1.500,50):
+  // precio y costo se guardan con centavos, y redondearlos en pantalla mostraba un valor
+  // distinto al que realmente se cobra.
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 export function formatoFecha(fecha: string): string {

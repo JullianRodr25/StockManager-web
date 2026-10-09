@@ -74,14 +74,9 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { formatoMoneda } from '@/components/DetalleFacturaDialog';
 
 const TAMANO_PAGINA = 50;
-
-const formatoMoneda = new Intl.NumberFormat('es-CO', {
-  style: 'currency',
-  currency: 'COP',
-  maximumFractionDigits: 0,
-});
 
 interface NuevoProductoForm {
   nombre: string;

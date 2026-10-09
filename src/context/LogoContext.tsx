@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import logoPredeterminado from '../assets/logo-ferreteria-gold.jpg';
+import { useFavicon } from '../hooks/useFavicon';
 
 const LOGO_STORAGE_KEY = 'stockmanager_logo';
 
@@ -17,6 +18,9 @@ export function LogoProvider({ children }: { children: ReactNode }) {
   const [logoUrl, setLogoUrl] = useState<string>(() => {
     return localStorage.getItem(LOGO_STORAGE_KEY) ?? logoPredeterminado;
   });
+
+  // El ícono de la pestaña sigue al logo configurado (o al predeterminado).
+  useFavicon(logoUrl);
 
   const actualizarLogo = useCallback((dataUrl: string) => {
     localStorage.setItem(LOGO_STORAGE_KEY, dataUrl);

@@ -15,7 +15,7 @@ import type { Producto } from '@/types/inventario';
 import type { MetodoPago, MetodoPagoVenta, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
 import type { Cliente, TipoDocumentoFiscal } from '@/types/clientes';
 import { BuscadorProductos } from '@/components/BuscadorProductos';
-import { DetalleFacturaDialog } from '@/components/DetalleFacturaDialog';
+import { DetalleFacturaDialog, formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,12 +41,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 
 const TAMANO_PAGINA_PRODUCTOS = 500;
-
-const formatoMoneda = new Intl.NumberFormat('es-CO', {
-  style: 'currency',
-  currency: 'COP',
-  maximumFractionDigits: 0,
-});
 
 // Separador de miles (punto, formato es-CO) para los campos de dinero que el cajero escribe a
 // mano (monto recibido, desglose de pago mixto): sin esto, escribir "180000" a ciegas es
