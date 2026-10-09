@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { PantallaCargaLogo } from './PantallaCargaLogo';
+import { rutaInicialDe } from '../utils/permisos';
+import type { RolUsuario } from '../types/auth';
 
 interface RutaProtegidaProps {
   children: ReactNode;
-  rolesPermitidos?: Array<'Admin' | 'Empleado'>;
+  rolesPermitidos?: RolUsuario[];
 }
 
 export function RutaProtegida({ children, rolesPermitidos }: RutaProtegidaProps) {
@@ -22,7 +24,9 @@ export function RutaProtegida({ children, rolesPermitidos }: RutaProtegidaProps)
   }
 
   if (rolesPermitidos && !rolesPermitidos.includes(usuario.rol)) {
-    return <Navigate to="/" replace />;
+    // Cada rol vuelve a SU pantalla inicial (el de solo consulta no tiene Dashboard), así no
+    // se produce un bucle de redirecciones.
+    return <Navigate to={rutaInicialDe(usuario.rol)} replace />;
   }
 
   return <>{children}</>;

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { LogoProvider } from './context/LogoContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -22,6 +22,7 @@ import { Proveedores } from './pages/Proveedores';
 import { CuentasPorPagar } from './pages/CuentasPorPagar';
 import { PaginaProximamente } from './pages/PaginaProximamente';
 import { Toaster } from '@/components/ui/sonner';
+import { ROLES_OPERATIVOS } from './utils/permisos';
 
 function App() {
   return (
@@ -43,7 +44,6 @@ function App() {
                     </RutaProtegida>
                   }
                 >
-                  <Route path="/" element={<Dashboard />} />
                   <Route path="/inventario" element={<Inventario />} />
                   <Route
                     path="/inventario/etiquetas"
@@ -53,15 +53,25 @@ function App() {
                       </RutaProtegida>
                     }
                   />
-                  <Route path="/ventas" element={<Ventas />} />
-                  <Route path="/ventas/fiado" element={<FiadoPage />} />
-                  <Route path="/ventas/historial" element={<HistorialVentas />} />
-                  <Route path="/pedidos" element={<Pedidos />} />
-                  <Route path="/clientes" element={<Clientes />} />
-                  <Route path="/proveedores" element={<Proveedores />} />
-                  <Route path="/proveedores/cuentas-por-pagar" element={<CuentasPorPagar />} />
-                  <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
-                  <Route path="/configuracion" element={<Configuracion />} />
+                  {/* Todo lo demás es operativo: el rol de solo consulta no entra (el backend tampoco lo deja). */}
+                  <Route
+                    element={
+                      <RutaProtegida rolesPermitidos={ROLES_OPERATIVOS}>
+                        <Outlet />
+                      </RutaProtegida>
+                    }
+                  >
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/ventas" element={<Ventas />} />
+                    <Route path="/ventas/fiado" element={<FiadoPage />} />
+                    <Route path="/ventas/historial" element={<HistorialVentas />} />
+                    <Route path="/pedidos" element={<Pedidos />} />
+                    <Route path="/clientes" element={<Clientes />} />
+                    <Route path="/proveedores" element={<Proveedores />} />
+                    <Route path="/proveedores/cuentas-por-pagar" element={<CuentasPorPagar />} />
+                    <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
+                    <Route path="/configuracion" element={<Configuracion />} />
+                  </Route>
                 </Route>
               </Routes>
               </BorradorVentaProvider>

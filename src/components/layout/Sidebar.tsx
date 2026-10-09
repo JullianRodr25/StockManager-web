@@ -18,6 +18,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { ROLES_CONSULTA_INVENTARIO, ROLES_OPERATIVOS } from '@/utils/permisos';
+import type { RolUsuario } from '@/types/auth';
 
 interface SubModuloNav {
   label: string;
@@ -30,6 +32,8 @@ interface ModuloNav {
   to: string;
   icon: LucideIcon;
   children?: SubModuloNav[];
+  /** Roles que ven este módulo; por defecto, solo los que operan el negocio. */
+  roles?: RolUsuario[];
 }
 
 const modulos: ModuloNav[] = [
@@ -38,6 +42,7 @@ const modulos: ModuloNav[] = [
     label: 'Inventario',
     to: '/inventario',
     icon: Package,
+    roles: ROLES_CONSULTA_INVENTARIO,
     children: [
       { label: 'Productos', to: '/inventario' },
       { label: 'Etiquetas pendientes', to: '/inventario/etiquetas', soloAdmin: true },
@@ -110,6 +115,9 @@ function InsigniaVentaEnCurso({ cantidad }: { cantidad: number }) {
 function SidebarNav() {
   const location = useLocation();
   const { usuario } = useAuth();
+  const modulosVisibles = modulos.filter((modulo) =>
+    (modulo.roles ?? ROLES_OPERATIVOS).some((rol) => rol === usuario?.rol)
+  );
   const [carritoEnCurso] = useBorradorVenta<unknown[]>('carrito', []);
   const [expandido, setExpandido] = useState<Record<string, boolean>>({
     '/inventario': location.pathname.startsWith('/inventario'),
@@ -119,7 +127,7 @@ function SidebarNav() {
 
   return (
     <nav className="flex flex-1 flex-col gap-1 px-3">
-      {modulos.map(({ label, to, icon: Icon, children }) => {
+      {modulosVisibles.map(({ label, to, icon: Icon, children }) => {
         if (!children) {
           return (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => navLinkClasses(isActive)}>

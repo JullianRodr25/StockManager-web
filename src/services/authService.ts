@@ -3,6 +3,8 @@ import type {
   AuthRequest,
   AuthResponse,
   MensajeResponse,
+  RegistrarEmpleadoRequest,
+  RegistrarResponse,
   RestablecerContrasenaRequest,
   SolicitarRecuperacionRequest,
 } from '../types/auth';
@@ -27,5 +29,17 @@ export async function restablecerContrasena(datos: RestablecerContrasenaRequest)
   return apiRequest<MensajeResponse>('/api/auth/restablecer-contrasena', {
     method: 'POST',
     body: datos,
+  });
+}
+
+/** Crea un empleado con el rol indicado. Solo lo permite el backend a un Admin. */
+export async function registrarEmpleado(
+  datos: RegistrarEmpleadoRequest,
+  token: string | null
+): Promise<RegistrarResponse> {
+  return apiRequest<RegistrarResponse>('/api/auth/registrar/empleado', {
+    method: 'POST',
+    body: datos,
+    token,
   });
 }

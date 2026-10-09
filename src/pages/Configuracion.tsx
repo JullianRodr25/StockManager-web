@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Bell, Building2, ImagePlus, Loader2, ReceiptText, RotateCcw, Tags } from 'lucide-react';
+import { Bell, Building2, ImagePlus, Loader2, ReceiptText, RotateCcw, Tags, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
@@ -11,6 +11,7 @@ import type { ConfiguracionGeneral } from '@/types/configuracion';
 import { CategoriasDialog } from '@/components/CategoriasDialog';
 import { DatosFacturacionCard } from '@/components/DatosFacturacionCard';
 import { NavegacionConfiguracion } from '@/components/NavegacionConfiguracion';
+import { NuevoUsuarioCard } from '@/components/NuevoUsuarioCard';
 import type { SeccionConfiguracion } from '@/components/NavegacionConfiguracion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +27,7 @@ const SECCIONES: (SeccionConfiguracion & { soloAdmin?: boolean })[] = [
   { id: 'facturacion', titulo: 'Facturación', descripcion: 'Resolución DIAN, IVA e impresora', icono: ReceiptText },
   { id: 'catalogo', titulo: 'Catálogo', descripcion: 'Categorías de productos', icono: Tags, soloAdmin: true },
   { id: 'notificaciones', titulo: 'Notificaciones', descripcion: 'Avisos por WhatsApp', icono: Bell, soloAdmin: true },
+  { id: 'usuarios', titulo: 'Usuarios', descripcion: 'Crear cuentas y asignar roles', icono: UserPlus, soloAdmin: true },
 ];
 
 const vacioANull = (texto: string): string | null => (texto.trim() === '' ? null : texto.trim());
@@ -578,6 +580,8 @@ export function Configuracion() {
             )}
             </>
           )}
+
+          {seccionActiva === 'usuarios' && esAdmin && <NuevoUsuarioCard token={token} />}
 
           {seccionActiva === 'notificaciones' && esAdmin && (
             <>

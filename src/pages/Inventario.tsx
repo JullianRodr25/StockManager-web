@@ -12,6 +12,7 @@ import { actualizarProducto, ajustarStock, buscarProductoPorCodigoBarras, crearP
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { obtenerProveedores } from '@/services/proveedorService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
+import { esOperativo } from '@/utils/permisos';
 import type {
   ActualizarProductoRequest,
   Categoria,
@@ -113,6 +114,10 @@ function obtenerErroresImportacion(data: unknown): ImportarProductoError[] {
 export function Inventario() {
   const { usuario, token } = useAuth();
   const esAdmin = usuario?.rol === 'Admin';
+  // El rol de solo consulta no ve proveedores ni la configuración: el servidor se los niega, así
+  // que tampoco se piden (evita llamadas que terminan en 403) ni se muestra esa columna.
+  const veProveedores = esOperativo(usuario?.rol);
+  const columnasTabla = (esAdmin ? 10 : 8) - (veProveedores ? 0 : 1);
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [pagina, setPagina] = useState(1);
@@ -227,22 +232,24 @@ export function Inventario() {
   }, [token]);
 
   useEffect(() => {
+    if (!veProveedores) return;
     obtenerConfiguracion(token)
       .then((configuracion) => setTarifaIvaGeneral(configuracion.tarifaIvaPorDefecto))
       .catch(() => {
         // Si falla, el campo de IVA del formulario simplemente queda vacío
         // y el usuario puede escribir el valor manualmente.
       });
-  }, [token]);
+  }, [token, veProveedores]);
 
   useEffect(() => {
+    if (!veProveedores) return;
     obtenerProveedores(1, 200, token, true)
       .then((respuesta) => setProveedores(respuesta.data))
       .catch(() => {
         // Si fallan los proveedores, el selector del formulario simplemente queda vacío;
         // la tabla de productos puede seguir funcionando sin el nombre del proveedor.
       });
-  }, [token]);
+  }, [token, veProveedores]);
 
   useEffect(() => {
     const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
@@ -755,9 +762,11 @@ export function Inventario() {
         </TableCell>
         <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
         <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
-        <TableCell className="text-navy">
-          {producto.proveedorId ? proveedorPorId.get(producto.proveedorId) ?? '—' : '—'}
-        </TableCell>
+        {veProveedores && (
+          <TableCell className="text-navy">
+            {producto.proveedorId ? proveedorPorId.get(producto.proveedorId) ?? '—' : '—'}
+          </TableCell>
+        )}
         {esAdmin && (
           <TableCell>
             <div className="flex items-center justify-end gap-1">
@@ -939,7 +948,7 @@ export function Inventario() {
                 <TableHead>Stock actual</TableHead>
                 <TableHead>Stock mínimo</TableHead>
                 <TableHead>Código de barras</TableHead>
-                <TableHead>Proveedor</TableHead>
+                {veProveedores && <TableHead>Proveedor</TableHead>}
                 {esAdmin && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
@@ -948,13 +957,13 @@ export function Inventario() {
                 renderFilaProducto(productoEncontradoPorCodigo)
               ) : cargando ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 10 : 8} className="text-center text-text-muted">
+                  <TableCell colSpan={columnasTabla} className="text-center text-text-muted">
                     <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : productosAMostrar.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={esAdmin ? 10 : 8} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={columnasTabla} className="py-8 text-center text-text-muted">
                     No se encontraron productos.
                   </TableCell>
                 </TableRow>

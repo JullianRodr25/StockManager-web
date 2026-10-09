@@ -10,11 +10,19 @@ export interface AuthResponse {
   token: string;
 }
 
+/**
+ * Roles de un empleado. Debe coincidir con StockManager.Domain.Constants.Roles del backend:
+ * - Admin: acceso completo.
+ * - Empleado: opera el negocio (ventas, pedidos, clientes, proveedores).
+ * - ConsultaInventario: solo ve el inventario (sin costos, proveedores ni ventas).
+ */
+export type RolUsuario = 'Admin' | 'Empleado' | 'ConsultaInventario';
+
 export interface EmpleadoAutenticado {
   id: string;
   numeroIdentificacion: string;
   nombre: string;
-  rol: 'Admin' | 'Empleado';
+  rol: RolUsuario;
 }
 
 export interface ApiErrorResponse {
@@ -31,5 +39,19 @@ export interface RestablecerContrasenaRequest {
 }
 
 export interface MensajeResponse {
+  message: string;
+}
+
+// Debe coincidir con RegistrarEmpleadoRequest / RegistrarResponse de AuthDtos.cs.
+export interface RegistrarEmpleadoRequest {
+  numeroIdentificacion: string;
+  nombre: string;
+  email: string;
+  password: string;
+  rol: RolUsuario;
+}
+
+export interface RegistrarResponse {
+  id: number;
   message: string;
 }

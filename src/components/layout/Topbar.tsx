@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificacionesBell } from './NotificacionesBell';
+import { esOperativo, etiquetaDeRol } from '@/utils/permisos';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,7 +64,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           {theme === 'dark' ? <Sun className="h-5 w-5 text-navy" /> : <Moon className="h-5 w-5 text-navy" />}
         </Button>
 
-        <NotificacionesBell />
+        {/* Las notificaciones internas son del personal operativo; el rol de consulta no las recibe. */}
+        {esOperativo(usuario?.rol) && <NotificacionesBell />}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -77,7 +79,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-semibold text-navy">{usuario?.nombre}</p>
-                <p className="text-xs text-text-muted">{usuario?.rol}</p>
+                <p className="text-xs text-text-muted">{etiquetaDeRol(usuario?.rol)}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

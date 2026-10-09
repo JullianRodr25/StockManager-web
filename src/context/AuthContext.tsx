@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import type { ReactNode } from 'react';
 import { decodeJwt, isTokenExpired } from '../services/jwt';
 import { loginEmpleado } from '../services/authService';
-import type { EmpleadoAutenticado } from '../types/auth';
+import type { EmpleadoAutenticado, RolUsuario } from '../types/auth';
 import { ApiError, registrarManejadorSesionVencida } from '../services/api';
 
 const TOKEN_STORAGE_KEY = 'stockmanager_token';
@@ -25,7 +25,7 @@ function construirUsuarioDesdeToken(token: string): EmpleadoAutenticado | null {
     numeroIdentificacion: payload.unique_name,
     nombre: payload.given_name,
     rol: (payload.role ??
-      payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']) as 'Admin' | 'Empleado',
+      payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']) as RolUsuario,
   };
 }
 
