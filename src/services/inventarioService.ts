@@ -97,13 +97,18 @@ export async function ajustarStock(id: number, delta: number, token: string | nu
   });
 }
 
+/**
+ * Importa el Excel. Con `soloValidar` el backend devuelve la vista previa sin guardar nada;
+ * sin él aplica los cambios, pero solo si todas las filas son válidas (todo o nada).
+ */
 export async function importarProductos(
   archivo: File,
-  token: string | null
+  token: string | null,
+  soloValidar = false
 ): Promise<ImportarProductosResponse> {
   const formData = new FormData();
   formData.append('archivo', archivo);
-  return apiRequest<ImportarProductosResponse>('/api/productos/importar', {
+  return apiRequest<ImportarProductosResponse>(`/api/productos/importar?soloValidar=${soloValidar}`, {
     method: 'POST',
     body: formData,
     token,

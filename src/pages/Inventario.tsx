@@ -171,6 +171,8 @@ export function Inventario() {
   const [descargandoExcel, setDescargandoExcel] = useState<'inventario' | 'plantilla' | null>(null);
   const [resultadoImportacion, setResultadoImportacion] = useState<ImportarProductosResponse | null>(null);
   const [dialogImportacionAbierto, setDialogImportacionAbierto] = useState(false);
+  // Archivo ya validado en la vista previa, a la espera de que el usuario confirme.
+  const [archivoPendiente, setArchivoPendiente] = useState<File | null>(null);
   const [errorImportacion, setErrorImportacion] = useState<string | null>(null);
   const [erroresImportacion, setErroresImportacion] = useState<ImportarProductoError[]>([]);
 
@@ -502,6 +504,36 @@ export function Inventario() {
     inputArchivoRef.current?.click();
   }
 
+  function normalizarResultadoImportacion(respuesta: Partial<ImportarProductosResponse> | undefined): ImportarProductosResponse {
+    // Una respuesta sin cuerpo JSON (ej. un proxy o el propio Azure devolviendo otra cosa con
+    // 200) llegaba acá como undefined y rompía la pantalla; se normaliza para que siempre
+    // haya un resultado con forma válida que mostrar.
+    return {
+      totalFilas: respuesta?.totalFilas ?? 0,
+      creados: respuesta?.creados ?? 0,
+      modificados: respuesta?.modificados ?? 0,
+      sinCambios: respuesta?.sinCambios ?? 0,
+      aplicado: respuesta?.aplicado ?? false,
+      errores: Array.isArray(respuesta?.errores) ? respuesta.errores : [],
+    };
+  }
+
+  function mostrarErrorImportacion(err: unknown) {
+    const errores = err instanceof ApiError ? obtenerErroresImportacion(err.data) : [];
+    const mensaje = err instanceof ApiError ? err.message : 'No se pudo importar el archivo.';
+    setResultadoImportacion(null);
+    setArchivoPendiente(null);
+    setErroresImportacion(errores);
+    setErrorImportacion(errores.length > 0 && mensaje.startsWith(MENSAJE_ERROR_GENERICO) ? null : mensaje);
+    setDialogImportacionAbierto(true);
+    if (errores.length > 0) {
+      toast.warning(`${errores.length} fila(s) con errores de importación`);
+    } else {
+      toast.error(mensaje);
+    }
+  }
+
+  // Paso 1: validar el archivo SIN guardar y mostrar qué pasaría (vista previa).
   async function handleArchivoSeleccionado(e: ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0];
     e.target.value = '';
@@ -511,40 +543,53 @@ export function Inventario() {
     setErrorImportacion(null);
     setErroresImportacion([]);
     setResultadoImportacion(null);
+    setArchivoPendiente(null);
     try {
-      const respuesta = await importarProductos(archivo, token);
-      // Una respuesta sin cuerpo JSON (ej. un proxy o el propio Azure devolviendo otra cosa con
-      // 200) llegaba acá como undefined y rompía la pantalla; se normaliza para que siempre
-      // haya un resultado con forma válida que mostrar.
-      const resultado: ImportarProductosResponse = {
-        totalFilas: respuesta?.totalFilas ?? 0,
-        creados: respuesta?.creados ?? 0,
-        errores: Array.isArray(respuesta?.errores) ? respuesta.errores : [],
-      };
+      const resultado = normalizarResultadoImportacion(await importarProductos(archivo, token, true));
       setResultadoImportacion(resultado);
+      // Solo se puede confirmar si todo es válido y hay algo que aplicar.
+      const hayCambios = resultado.creados + resultado.modificados > 0;
+      setArchivoPendiente(resultado.errores.length === 0 && hayCambios ? archivo : null);
       setDialogImportacionAbierto(true);
-      if (resultado.errores.length === 0) {
-        toast.success(`${resultado.creados} de ${resultado.totalFilas} productos importados`);
-      } else {
-        toast.warning(`${resultado.creados} importados, ${resultado.errores.length} con errores`);
-      }
-      const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
-      await cargarProductos(pagina, categoriaId);
     } catch (err) {
-      const errores = err instanceof ApiError ? obtenerErroresImportacion(err.data) : [];
-      const mensaje = err instanceof ApiError ? err.message : 'No se pudo importar el archivo.';
-      setResultadoImportacion(null);
-      setErroresImportacion(errores);
-      setErrorImportacion(errores.length > 0 && mensaje.startsWith(MENSAJE_ERROR_GENERICO) ? null : mensaje);
-      setDialogImportacionAbierto(true);
-      if (errores.length > 0) {
-        toast.warning(`${errores.length} fila(s) con errores de importación`);
-      } else {
-        toast.error(mensaje);
-      }
+      mostrarErrorImportacion(err);
     } finally {
       setImportando(false);
     }
+  }
+
+  // Paso 2: el usuario confirmó; se envía el mismo archivo para aplicar los cambios.
+  async function handleConfirmarImportacion() {
+    if (!archivoPendiente) return;
+
+    setImportando(true);
+    try {
+      const resultado = normalizarResultadoImportacion(await importarProductos(archivoPendiente, token, false));
+      setResultadoImportacion(resultado);
+      if (resultado.aplicado) {
+        setArchivoPendiente(null);
+        toast.success(
+          `Importación aplicada: ${resultado.creados} creados, ${resultado.modificados} modificados`
+        );
+        const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
+        await cargarProductos(pagina, categoriaId);
+      } else {
+        // El archivo cambió de estado entre la vista previa y la confirmación (ej. alguien creó
+        // un producto con el mismo nombre): no se guardó nada y se muestran los nuevos errores.
+        setArchivoPendiente(null);
+        toast.warning('No se guardó nada: el archivo tiene errores.');
+      }
+    } catch (err) {
+      mostrarErrorImportacion(err);
+    } finally {
+      setImportando(false);
+    }
+  }
+
+  function handleCerrarImportacion(abierto: boolean) {
+    if (importando) return;
+    setDialogImportacionAbierto(abierto);
+    if (!abierto) setArchivoPendiente(null);
   }
 
   function pedirConfirmacionDesactivar(producto: Producto) {
@@ -746,7 +791,7 @@ export function Inventario() {
             <input
               ref={inputArchivoRef}
               type="file"
-              accept=".xlsx,.csv"
+              accept=".xlsx"
               className="hidden"
               onChange={handleArchivoSeleccionado}
             />
@@ -1060,10 +1105,16 @@ export function Inventario() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialogImportacionAbierto} onOpenChange={setDialogImportacionAbierto}>
+      <Dialog open={dialogImportacionAbierto} onOpenChange={handleCerrarImportacion}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Resultado de la importación</DialogTitle>
+            <DialogTitle>
+              {resultadoImportacion?.aplicado
+                ? 'Importación aplicada'
+                : archivoPendiente
+                  ? 'Vista previa de la importación'
+                  : 'Resultado de la importación'}
+            </DialogTitle>
           </DialogHeader>
 
           {errorImportacion && (
@@ -1073,25 +1124,44 @@ export function Inventario() {
           )}
 
           {resultadoImportacion && (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-md border border-border p-3">
-                    <p className="text-text-muted">Filas procesadas</p>
-                    <p className="text-lg font-semibold text-navy">{resultadoImportacion.totalFilas}</p>
-                  </div>
-                  <div className="rounded-md border border-border p-3">
-                    <p className="text-text-muted">Productos creados</p>
-                    <p className="text-lg font-semibold text-green">{resultadoImportacion.creados}</p>
-                  </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-text-muted">Filas</p>
+                  <p className="text-lg font-semibold text-navy">{resultadoImportacion.totalFilas}</p>
                 </div>
-
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-text-muted">Nuevos</p>
+                  <p className="text-lg font-semibold text-green">{resultadoImportacion.creados}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-text-muted">Modificados</p>
+                  <p className="text-lg font-semibold text-navy">{resultadoImportacion.modificados}</p>
+                </div>
+                <div className="rounded-md border border-border p-3">
+                  <p className="text-text-muted">Sin cambios</p>
+                  <p className="text-lg font-semibold text-text-muted">{resultadoImportacion.sinCambios}</p>
+                </div>
               </div>
+
+              {archivoPendiente && (
+                <p className="text-sm text-text-muted">
+                  Todavía no se ha guardado nada. Revisa el resumen y confirma para aplicar los cambios.
+                </p>
+              )}
+              {!archivoPendiente &&
+                !resultadoImportacion.aplicado &&
+                resultadoImportacion.errores.length === 0 && (
+                  <p className="text-sm text-text-muted">El archivo no tiene cambios para aplicar.</p>
+                )}
+            </div>
           )}
 
           {(resultadoImportacion?.errores ?? erroresImportacion).length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-semibold text-error-text">
-                {(resultadoImportacion?.errores ?? erroresImportacion).length} fila(s) con errores
+                {(resultadoImportacion?.errores ?? erroresImportacion).length} fila(s) con errores — no se guardó ningún cambio.
+                Corrige el archivo y vuelve a subirlo.
               </p>
               <div className="max-h-48 overflow-y-auto rounded-md border border-border">
                 <Table>
@@ -1115,9 +1185,20 @@ export function Inventario() {
           )}
 
           <DialogFooter>
-            <Button variant="gold" onClick={() => setDialogImportacionAbierto(false)}>
-              Cerrar
-            </Button>
+            {archivoPendiente ? (
+              <>
+                <Button variant="outline" onClick={() => handleCerrarImportacion(false)} disabled={importando}>
+                  Cancelar
+                </Button>
+                <Button variant="gold" onClick={handleConfirmarImportacion} disabled={importando}>
+                  {importando ? 'Importando...' : 'Confirmar e importar'}
+                </Button>
+              </>
+            ) : (
+              <Button variant="gold" onClick={() => handleCerrarImportacion(false)}>
+                Cerrar
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

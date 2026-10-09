@@ -83,6 +83,10 @@ export interface ImportarProductosErrorResponse {
 export interface ImportarProductosResponse {
   totalFilas: number;
   creados: number;
+  modificados: number;
+  sinCambios: number;
+  /** true solo si los cambios se guardaron; false en la vista previa o si hubo errores. */
+  aplicado: boolean;
   errores: ImportarProductoError[];
 }
 
