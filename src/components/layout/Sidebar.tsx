@@ -18,7 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { ROLES_CONSULTA_INVENTARIO, ROLES_OPERATIVOS } from '@/utils/permisos';
+import { ROLES_CON_INVENTARIO, ROLES_OPERATIVOS } from '@/utils/permisos';
 import type { RolUsuario } from '@/types/auth';
 
 interface SubModuloNav {
@@ -42,7 +42,7 @@ const modulos: ModuloNav[] = [
     label: 'Inventario',
     to: '/inventario',
     icon: Package,
-    roles: ROLES_CONSULTA_INVENTARIO,
+    roles: ROLES_CON_INVENTARIO,
     children: [
       { label: 'Productos', to: '/inventario' },
       { label: 'Etiquetas pendientes', to: '/inventario/etiquetas', soloAdmin: true },

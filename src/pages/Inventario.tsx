@@ -12,7 +12,7 @@ import { actualizarProducto, ajustarStock, buscarProductoPorCodigoBarras, crearP
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { obtenerProveedores } from '@/services/proveedorService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
-import { esOperativo } from '@/utils/permisos';
+import { esOperativo, puedeCrearProductos } from '@/utils/permisos';
 import type {
   ActualizarProductoRequest,
   Categoria,
@@ -114,10 +114,14 @@ function obtenerErroresImportacion(data: unknown): ImportarProductoError[] {
 export function Inventario() {
   const { usuario, token } = useAuth();
   const esAdmin = usuario?.rol === 'Admin';
-  // El rol de solo consulta no ve proveedores ni la configuración: el servidor se los niega, así
-  // que tampoco se piden (evita llamadas que terminan en 403) ni se muestra esa columna.
-  const veProveedores = esOperativo(usuario?.rol);
-  const columnasTabla = (esAdmin ? 10 : 8) - (veProveedores ? 0 : 1);
+  // Rol Inventario: crea productos y solo SUMA stock. Editar, restar stock, Excel, costo y
+  // desactivar/reactivar son del Admin. Es solo comodidad de interfaz: el backend aplica la misma
+  // regla con [Authorize].
+  const puedeCrear = puedeCrearProductos(usuario?.rol);
+  const puedeEditar = esAdmin;
+  // Crear un proveedor desde el formulario exige ser Admin o Empleado en el backend.
+  const puedeCrearProveedor = esOperativo(usuario?.rol);
+  const columnasTabla = puedeEditar ? 10 : 8;
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [pagina, setPagina] = useState(1);
@@ -232,24 +236,22 @@ export function Inventario() {
   }, [token]);
 
   useEffect(() => {
-    if (!veProveedores) return;
     obtenerConfiguracion(token)
       .then((configuracion) => setTarifaIvaGeneral(configuracion.tarifaIvaPorDefecto))
       .catch(() => {
         // Si falla, el campo de IVA del formulario simplemente queda vacío
         // y el usuario puede escribir el valor manualmente.
       });
-  }, [token, veProveedores]);
+  }, [token]);
 
   useEffect(() => {
-    if (!veProveedores) return;
     obtenerProveedores(1, 200, token, true)
       .then((respuesta) => setProveedores(respuesta.data))
       .catch(() => {
         // Si fallan los proveedores, el selector del formulario simplemente queda vacío;
         // la tabla de productos puede seguir funcionando sin el nombre del proveedor.
       });
-  }, [token, veProveedores]);
+  }, [token]);
 
   useEffect(() => {
     const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
@@ -348,9 +350,11 @@ export function Inventario() {
   const nuevoStockValido =
     nuevoStockInput.trim() !== '' && Number.isInteger(nuevoStockNumero) && nuevoStockNumero >= 0;
   const deltaStockModal = productoStockModal && nuevoStockValido ? nuevoStockNumero - productoStockModal.stockActual : 0;
+  // Sin permiso de edición solo se puede subir el stock; el backend lo vuelve a exigir.
+  const restaNoPermitida = !puedeEditar && nuevoStockValido && deltaStockModal < 0;
 
   function abrirModalStock(producto: Producto) {
-    if (!esAdmin) return;
+    if (!puedeCrear) return;
     setProductoStockModalId(producto.id);
     setNuevoStockInput(String(producto.stockActual));
   }
@@ -723,17 +727,17 @@ export function Inventario() {
         <TableCell className="text-navy">
           {producto.aplicaIva ? `${producto.tarifaIva}%` : <span className="text-text-muted">Exento</span>}
         </TableCell>
-        {esAdmin && (
+        {puedeEditar && (
           <TableCell className="text-text-muted">{formatoMoneda.format(producto.costo)}</TableCell>
         )}
         <TableCell
           className={cn(
             'font-semibold',
             sinStock ? 'text-error-text' : stockBajo ? 'text-gold' : 'text-navy',
-            esAdmin && 'cursor-pointer select-none'
+            puedeCrear && 'cursor-pointer select-none'
           )}
           onDoubleClick={() => abrirModalStock(producto)}
-          title={esAdmin ? 'Doble clic para cambiar el stock' : undefined}
+          title={puedeEditar ? 'Doble clic para cambiar el stock' : puedeCrear ? 'Doble clic para sumar stock' : undefined}
         >
           <span className="inline-flex flex-col items-start gap-1">
             <span className="inline-flex items-center gap-2">
@@ -762,12 +766,10 @@ export function Inventario() {
         </TableCell>
         <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
         <TableCell className="text-text-muted">{producto.codigoBarras ?? '—'}</TableCell>
-        {veProveedores && (
-          <TableCell className="text-navy">
-            {producto.proveedorId ? proveedorPorId.get(producto.proveedorId) ?? '—' : '—'}
-          </TableCell>
-        )}
-        {esAdmin && (
+        <TableCell className="text-navy">
+          {producto.proveedorId ? proveedorPorId.get(producto.proveedorId) ?? '—' : '—'}
+        </TableCell>
+        {puedeEditar && (
           <TableCell>
             <div className="flex items-center justify-end gap-1">
               <Button
@@ -778,7 +780,7 @@ export function Inventario() {
               >
                 <Pencil className="h-4 w-4" />
               </Button>
-              {producto.activo ? (
+              {esAdmin && (producto.activo ? (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -801,7 +803,7 @@ export function Inventario() {
                     <RotateCcw className="h-4 w-4 text-green" />
                   )}
                 </Button>
-              )}
+              ))}
             </div>
           </TableCell>
         )}
@@ -864,8 +866,10 @@ export function Inventario() {
           )}
         </div>
 
-        {esAdmin && (
+        {puedeCrear && (
           <div className="flex gap-2">
+            {puedeEditar && (
+              <>
             <input
               ref={inputArchivoRef}
               type="file"
@@ -898,6 +902,8 @@ export function Inventario() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+              </>
+            )}
             <Button variant="gold" onClick={abrirDialogNuevo}>
               <Plus className="h-4 w-4" />
               Nuevo producto
@@ -906,7 +912,7 @@ export function Inventario() {
         )}
       </div>
 
-      {esAdmin && (
+      {puedeEditar && (
         <p className="text-xs text-text-muted">
           Columnas del Excel: Nombre, Categoría (debe existir en Configuración → Categorías; si alguna no
           existe, el archivo completo se rechaza), Precio, StockInicial (mayor a 0), StockMinimo, CodigoBarras (opcional),
@@ -944,12 +950,12 @@ export function Inventario() {
                 <TableHead>Categoría</TableHead>
                 <TableHead>Precio</TableHead>
                 <TableHead>IVA (%)</TableHead>
-                {esAdmin && <TableHead>Costo</TableHead>}
+                {puedeEditar && <TableHead>Costo</TableHead>}
                 <TableHead>Stock actual</TableHead>
                 <TableHead>Stock mínimo</TableHead>
                 <TableHead>Código de barras</TableHead>
-                {veProveedores && <TableHead>Proveedor</TableHead>}
-                {esAdmin && <TableHead className="text-right">Acciones</TableHead>}
+                <TableHead>Proveedor</TableHead>
+                {puedeEditar && <TableHead className="text-right">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1141,16 +1147,18 @@ export function Inventario() {
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Label htmlFor="proveedorId">Proveedor (opcional)</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setDialogProveedorAbierto(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Crear proveedor
-                </Button>
+                {puedeCrearProveedor && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setDialogProveedorAbierto(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Crear proveedor
+                  </Button>
+                )}
               </div>
               <Select
                 value={formulario.proveedorId || SIN_PROVEEDOR}
@@ -1382,6 +1390,11 @@ export function Inventario() {
                   {nuevoStockInput.trim() !== '' && !nuevoStockValido && (
                     <p className="text-xs text-error-text">Escribe un número entero de 0 en adelante.</p>
                   )}
+                  {restaNoPermitida && (
+                    <p className="text-xs text-error-text">
+                      Con tu rol solo puedes sumar stock: escribe una cantidad mayor a la actual.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1393,7 +1406,7 @@ export function Inventario() {
               <Button
                 type="submit"
                 variant="gold"
-                disabled={guardandoAjusteStock || !nuevoStockValido || deltaStockModal === 0}
+                disabled={guardandoAjusteStock || !nuevoStockValido || deltaStockModal === 0 || restaNoPermitida}
               >
                 {guardandoAjusteStock ? 'Guardando...' : 'Aceptar'}
               </Button>

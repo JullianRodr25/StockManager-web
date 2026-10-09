@@ -14,9 +14,9 @@ export interface AuthResponse {
  * Roles de un empleado. Debe coincidir con StockManager.Domain.Constants.Roles del backend:
  * - Admin: acceso completo.
  * - Empleado: opera el negocio (ventas, pedidos, clientes, proveedores).
- * - ConsultaInventario: solo ve el inventario (sin costos, proveedores ni ventas).
+ * - Inventario: gestiona el inventario (crear, editar, stock, Excel); sin ventas ni otros módulos.
  */
-export type RolUsuario = 'Admin' | 'Empleado' | 'ConsultaInventario';
+export type RolUsuario = 'Admin' | 'Empleado' | 'Inventario';
 
 export interface EmpleadoAutenticado {
   id: string;
