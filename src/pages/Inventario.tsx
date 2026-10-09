@@ -33,6 +33,7 @@ import type {
   ProductoFoto,
 } from '@/types/inventario';
 import { GaleriaFotosProducto } from '@/components/GaleriaFotosProducto';
+import { ProveedorRapidoDialog } from '@/components/ProveedorRapidoDialog';
 import type { Proveedor } from '@/types/proveedores';
 import {
   AlertDialog,
@@ -140,6 +141,7 @@ export function Inventario() {
   const [busqueda, setBusqueda] = useState('');
   const [tarifaIvaGeneral, setTarifaIvaGeneral] = useState<number | null>(null);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [dialogProveedorAbierto, setDialogProveedorAbierto] = useState(false);
 
   const [codigoBarrasBusqueda, setCodigoBarrasBusqueda] = useState('');
   const [buscandoPorCodigo, setBuscandoPorCodigo] = useState(false);
@@ -590,6 +592,14 @@ export function Inventario() {
     if (importando) return;
     setDialogImportacionAbierto(abierto);
     if (!abierto) setArchivoPendiente(null);
+  }
+
+  // Proveedor recién creado desde el formulario: se agrega a la lista y queda seleccionado.
+  function handleProveedorCreado(proveedor: Proveedor) {
+    setProveedores((anteriores) =>
+      [...anteriores, proveedor].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+    );
+    actualizarCampoFormulario('proveedorId', String(proveedor.id));
   }
 
   function pedirConfirmacionDesactivar(producto: Producto) {
@@ -1054,7 +1064,19 @@ export function Inventario() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="proveedorId">Proveedor (opcional)</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="proveedorId">Proveedor (opcional)</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setDialogProveedorAbierto(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Crear proveedor
+                </Button>
+              </div>
               <Select
                 value={formulario.proveedorId || SIN_PROVEEDOR}
                 onValueChange={(valor) =>
@@ -1104,6 +1126,12 @@ export function Inventario() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ProveedorRapidoDialog
+        abierto={dialogProveedorAbierto}
+        onCambiarAbierto={setDialogProveedorAbierto}
+        onCreado={handleProveedorCreado}
+      />
 
       <Dialog open={dialogImportacionAbierto} onOpenChange={handleCerrarImportacion}>
         <DialogContent>
