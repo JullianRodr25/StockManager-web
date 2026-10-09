@@ -6,6 +6,7 @@
 // servicio usa para mandarle los comandos ESC/POS crudos.
 import qz from 'qz-tray';
 import { formatoFecha } from '@/components/DetalleFacturaDialog';
+import type { FacturaDocumento } from '@/types/facturaDocumento';
 import type { VentaResponse } from '@/types/ventas';
 
 const ESC = '\x1B';
@@ -51,24 +52,7 @@ export function debeAbrirCajon(venta: VentaResponse): boolean {
   return false;
 }
 
-// Datos del emisor (negocio) configurables desde Configuración > "Datos de la empresa", que
-// se imprimen en el encabezado del tiquete. Todos opcionales: el que no esté configurado
-// simplemente no aparece en esa línea, en vez de imprimir "null" o dejar un hueco vacío.
-export interface DatosEmpresaTiquete {
-  nombreEmpresa: string | null;
-  nitEmpresa: string | null;
-  direccionEmpresa: string | null;
-  telefonoEmpresa: string | null;
-  emailEmpresa: string | null;
-}
-
 const NOMBRE_EMPRESA_POR_DEFECTO = 'FERRETERIA GOLD';
-
-// Segunda línea de la dirección del negocio en el tiquete (barrio). La dirección configurada
-// en Configuración es un solo texto que no admite saltos de línea, así que el barrio se imprime
-// aparte, justo debajo. Si algún día cambia, se edita acá; si se vuelve algo que el dueño
-// quiere cambiar seguido, el paso siguiente sería hacerlo un campo más de "Datos de la empresa".
-const COMPLEMENTO_DIRECCION_EMPRESA = 'Barrio Los Alpes';
 
 let conexionEnCurso: Promise<void> | null = null;
 
@@ -95,94 +79,104 @@ function lineaDosColumnas(izquierda: string, derecha: string, ancho: number = AN
   return izquierda + ' '.repeat(espacio) + derecha + '\n';
 }
 
-// Valor base (sin IVA) y valor del IVA del total de la venta, sumando el desglose por línea
-// que ya trae cada detalle (ver VentaService) — el mismo cálculo que usa la vista digital en
-// DetalleFacturaDialog, así el tiquete físico siempre coincide con lo que se ve en pantalla.
-function calcularBaseEIva(venta: VentaResponse): { valorBase: number; valorIva: number } {
-  return venta.detalles.reduce(
-    (acumulado, linea) => ({
-      valorBase: acumulado.valorBase + linea.subtotalSinIva,
-      valorIva: acumulado.valorIva + linea.iva,
-    }),
-    { valorBase: 0, valorIva: 0 }
-  );
+// Parte un texto largo (resolución DIAN, texto legal) en renglones del ancho del tiquete,
+// cortando por palabras para no partirlas a la mitad.
+function envolverTexto(texto: string, ancho: number = ANCHO_TICKET): string[] {
+  const renglones: string[] = [];
+  let actual = '';
+  for (const palabra of paraImpresora(texto).split(/\s+/).filter(Boolean)) {
+    if (actual && (actual + ' ' + palabra).length > ancho) {
+      renglones.push(actual);
+      actual = palabra;
+    } else {
+      actual = actual ? `${actual} ${palabra}` : palabra;
+    }
+  }
+  if (actual) renglones.push(actual);
+  return renglones;
 }
 
-function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquete): string[] {
+function construirTiquete(venta: VentaResponse, doc: FacturaDocumento): string[] {
   const lineas: string[] = [];
-  const { valorBase, valorIva } = calcularBaseEIva(venta);
+  const centrado = (texto: string) => envolverTexto(texto).forEach((r) => lineas.push(`${r}\n`));
+  const separador = () => lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+  const { emisor, comprador } = doc;
 
-  // --- Encabezado: datos del emisor (negocio) ---
+  // --- Encabezado: datos del emisor (negocio), todo tomado de Configuración ---
   lineas.push(ESC + '@'); // reset de la impresora
   lineas.push(ESC + 'a' + '\x01'); // centrar
   lineas.push(ESC + '!' + '\x18'); // negrita + doble alto/ancho
-  lineas.push(`${paraImpresora(datosEmpresa.nombreEmpresa || NOMBRE_EMPRESA_POR_DEFECTO)}\n`);
+  lineas.push(`${paraImpresora(emisor.nombre || NOMBRE_EMPRESA_POR_DEFECTO)}\n`);
   lineas.push(ESC + '!' + '\x00'); // texto normal
-  if (datosEmpresa.nitEmpresa) {
-    lineas.push(`NIT ${paraImpresora(datosEmpresa.nitEmpresa)}\n`);
-  }
-  if (datosEmpresa.direccionEmpresa) {
-    lineas.push(`${paraImpresora(datosEmpresa.direccionEmpresa)}\n`);
-    lineas.push(`${paraImpresora(COMPLEMENTO_DIRECCION_EMPRESA)}\n`);
-  }
-  if (datosEmpresa.telefonoEmpresa) {
-    lineas.push(`Tel. ${paraImpresora(datosEmpresa.telefonoEmpresa)}\n`);
-  }
-  if (datosEmpresa.emailEmpresa) {
-    lineas.push(`${paraImpresora(datosEmpresa.emailEmpresa)}\n`);
-  }
-  lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+  if (emisor.nit) centrado(`NIT ${emisor.nit}`);
+  if (emisor.responsabilidadIva) centrado(emisor.responsabilidadIva);
+  if (emisor.actividadEconomica) centrado(`Act. economica: ${emisor.actividadEconomica}`);
+  if (emisor.direccion) centrado(emisor.direccion);
+  if (emisor.barrio) centrado(emisor.barrio);
+  if (emisor.ciudad) centrado(emisor.ciudad);
+  if (emisor.telefono) centrado(`Tel. ${emisor.telefono}`);
+  if (emisor.email) centrado(emisor.email);
+  if (emisor.resolucionDianTexto) centrado(emisor.resolucionDianTexto);
+  separador();
 
-  // --- Factura, fecha y cliente ---
+  // --- Factura, fecha, vendedor y cliente ---
   lineas.push(ESC + 'a' + '\x00'); // alinear a la izquierda
-  lineas.push(`Factura ${venta.numeroFactura}\n`);
-  lineas.push(`${paraImpresora(formatoFecha(venta.fecha))}\n`);
-  if (venta.nombreComprador) {
-    lineas.push(`Cliente: ${paraImpresora(venta.nombreComprador)}\n`);
+  lineas.push(`Factura ${paraImpresora(doc.numero)}\n`);
+  lineas.push(`${paraImpresora(formatoFecha(doc.fecha))}\n`);
+  if (doc.vendedor) lineas.push(`Vendedor: ${paraImpresora(doc.vendedor)}\n`);
+  lineas.push(`Cliente: ${paraImpresora(comprador.nombre)}\n`);
+  if (comprador.documento) {
+    lineas.push(`${paraImpresora(comprador.tipoDocumento ?? 'Doc.')}: ${paraImpresora(comprador.documento)}\n`);
   }
-  if (venta.telefonoComprador) {
-    lineas.push(`Tel: ${paraImpresora(venta.telefonoComprador)}\n`);
-  }
-  if (venta.emailComprador) {
-    lineas.push(`${paraImpresora(venta.emailComprador)}\n`);
-  }
-  lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+  if (comprador.direccion) lineas.push(`Dir: ${paraImpresora(comprador.direccion)}\n`);
+  if (comprador.telefono) lineas.push(`Tel: ${paraImpresora(comprador.telefono)}\n`);
+  separador();
 
   // --- Productos ---
-  for (const detalle of venta.detalles) {
-    lineas.push(`${paraImpresora(detalle.productoNombre)}\n`);
+  for (const linea of doc.lineas) {
+    lineas.push(`${paraImpresora(linea.producto)}\n`);
     lineas.push(
       lineaDosColumnas(
-        `  ${detalle.cantidad} x ${formatoMonedaTicket(detalle.precioUnitario)}`,
-        formatoMonedaTicket(detalle.subtotalConIva)
+        `  ${linea.cantidad} x ${formatoMonedaTicket(linea.precioUnitario)}`,
+        formatoMonedaTicket(linea.total)
       )
     );
   }
 
-  lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+  separador();
 
-  // --- Valor base, IVA y total segregados (igual que la factura digital) ---
-  lineas.push(lineaDosColumnas('SUBTOTAL', formatoMonedaTicket(valorBase)));
-  if (valorIva > 0) {
-    lineas.push(lineaDosColumnas('IVA', formatoMonedaTicket(valorIva)));
+  // --- Base e IVA por tarifa, y total ---
+  lineas.push(lineaDosColumnas('SUBTOTAL', formatoMonedaTicket(doc.subtotalBase)));
+  for (const fila of doc.resumenIva.filter((r) => r.tarifa > 0)) {
+    lineas.push(lineaDosColumnas(`Base IVA ${fila.tarifa}%`, formatoMonedaTicket(fila.base)));
+    lineas.push(lineaDosColumnas(`IVA ${fila.tarifa}%`, formatoMonedaTicket(fila.iva)));
   }
   lineas.push(ESC + '!' + '\x08'); // negrita
-  lineas.push(lineaDosColumnas('TOTAL', formatoMonedaTicket(venta.total)));
+  lineas.push(lineaDosColumnas('TOTAL', formatoMonedaTicket(doc.total)));
   lineas.push(ESC + '!' + '\x00');
 
-  if (venta.metodoPago === 'Efectivo' && venta.montoRecibido != null) {
-    lineas.push(lineaDosColumnas('Recibido', formatoMonedaTicket(venta.montoRecibido)));
-    lineas.push(lineaDosColumnas('Cambio', formatoMonedaTicket(venta.cambio ?? 0)));
-  } else {
-    lineas.push(`Metodo de pago: ${paraImpresora(venta.metodoPago)}\n`);
+  // --- Pago ---
+  for (const pago of doc.pagos) {
+    lineas.push(lineaDosColumnas(paraImpresora(pago.metodoPago), formatoMonedaTicket(pago.monto)));
+  }
+  if (doc.montoRecibido != null) {
+    lineas.push(lineaDosColumnas('Recibido', formatoMonedaTicket(doc.montoRecibido)));
+    lineas.push(lineaDosColumnas('Cambio', formatoMonedaTicket(doc.cambio ?? 0)));
   }
 
   if (venta.requiereFacturaElectronica) {
-    lineas.push('-'.repeat(ANCHO_TICKET) + '\n');
+    separador();
     lineas.push('Factura electronica solicitada\n');
     if (venta.estadoFacturaElectronica === 'Pendiente') {
       lineas.push('Pendiente de envio a la DIAN\n');
     }
+  }
+
+  // --- Pie: textos legales y política de cambios (configurables) ---
+  if (doc.textoLegal || doc.politicaCambios) {
+    separador();
+    if (doc.textoLegal) envolverTexto(doc.textoLegal).forEach((r) => lineas.push(`${r}\n`));
+    if (doc.politicaCambios) envolverTexto(doc.politicaCambios).forEach((r) => lineas.push(`${r}\n`));
   }
 
   lineas.push('\n');
@@ -221,12 +215,12 @@ function construirTiquete(venta: VentaResponse, datosEmpresa: DatosEmpresaTiquet
  */
 export async function imprimirRecibo(
   venta: VentaResponse,
-  nombreImpresora: string,
-  datosEmpresa: DatosEmpresaTiquete
+  documento: FacturaDocumento,
+  nombreImpresora: string
 ): Promise<void> {
   await asegurarConexion();
   const config = qz.configs.create(nombreImpresora);
-  await qz.print(config, construirTiquete(venta, datosEmpresa));
+  await qz.print(config, construirTiquete(venta, documento));
 }
 
 /**

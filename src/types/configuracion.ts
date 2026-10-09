@@ -13,6 +13,20 @@ export interface ConfiguracionGeneral {
   direccionEmpresa: string | null;
   telefonoEmpresa: string | null;
   emailEmpresa: string | null;
+  /** Datos de facturación (todos opcionales; Gold los crea/edita en Configuración). */
+  ciudadEmpresa: string | null;
+  barrioEmpresa: string | null;
+  responsabilidadIvaEmpresa: string | null;
+  actividadEconomicaEmpresa: string | null;
+  resolucionDianNumero: string | null;
+  /** Fecha ISO (yyyy-MM-dd…) de la resolución DIAN. */
+  resolucionDianFecha: string | null;
+  resolucionDianPrefijo: string | null;
+  resolucionDianRangoDesde: number | null;
+  resolucionDianRangoHasta: number | null;
+  resolucionDianVigenciaMeses: number | null;
+  textoLegalFactura: string | null;
+  politicaCambiosFactura: string | null;
 }
 
 // El backend actualiza la fila de Configuracion completa en un solo PUT (no hay PATCH parcial),
@@ -27,4 +41,18 @@ export interface ActualizarConfiguracionRequest {
   direccionEmpresa: string | null;
   telefonoEmpresa: string | null;
   emailEmpresa: string | null;
+  /** Datos de facturación (todos opcionales; Gold los crea/edita en Configuración). */
+  ciudadEmpresa: string | null;
+  barrioEmpresa: string | null;
+  responsabilidadIvaEmpresa: string | null;
+  actividadEconomicaEmpresa: string | null;
+  resolucionDianNumero: string | null;
+  /** Fecha ISO (yyyy-MM-dd…) de la resolución DIAN. */
+  resolucionDianFecha: string | null;
+  resolucionDianPrefijo: string | null;
+  resolucionDianRangoDesde: number | null;
+  resolucionDianRangoHasta: number | null;
+  resolucionDianVigenciaMeses: number | null;
+  textoLegalFactura: string | null;
+  politicaCambiosFactura: string | null;
 }

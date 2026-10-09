@@ -5,9 +5,10 @@ import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
 import { ApiError } from '@/services/api';
-import { actualizarConfiguracion, obtenerConfiguracion } from '@/services/configuracionService';
+import { actualizarConfiguracion, aRequest, obtenerConfiguracion } from '@/services/configuracionService';
 import type { ConfiguracionGeneral } from '@/types/configuracion';
 import { CategoriasDialog } from '@/components/CategoriasDialog';
+import { DatosFacturacionCard } from '@/components/DatosFacturacionCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,8 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 
 const TAMANO_MAXIMO_BYTES = 3 * 1024 * 1024; // 3 MB
+
+const vacioANull = (texto: string): string | null => (texto.trim() === '' ? null : texto.trim());
 
 export function Configuracion() {
   const { usuario, token } = useAuth();
@@ -115,6 +118,7 @@ export function Configuracion() {
     e.preventDefault();
     setErrorIva(null);
 
+    if (!configuracion) return;
     const valor = Number(tarifaIvaInput);
     if (tarifaIvaInput.trim() === '' || Number.isNaN(valor) || valor < 0 || valor > 100) {
       setErrorIva('Ingresa una tarifa válida entre 0 y 100.');
@@ -124,18 +128,8 @@ export function Configuracion() {
     setGuardandoIva(true);
     try {
       const actualizado = await actualizarConfiguracion(
-        {
-          tarifaIvaPorDefecto: valor,
-          // El PUT reemplaza toda la fila de Configuracion, así que se reenvían los demás
-          // campos vigentes para no borrarlos al guardar solo la tarifa.
-          telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
-          nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
-          nombreEmpresa: configuracion?.nombreEmpresa ?? null,
-          nitEmpresa: configuracion?.nitEmpresa ?? null,
-          direccionEmpresa: configuracion?.direccionEmpresa ?? null,
-          telefonoEmpresa: configuracion?.telefonoEmpresa ?? null,
-          emailEmpresa: configuracion?.emailEmpresa ?? null,
-        },
+        // El PUT reemplaza toda la fila: aRequest reenvía los demás campos vigentes.
+        { ...aRequest(configuracion), tarifaIvaPorDefecto: valor },
         token
       );
       setConfiguracion(actualizado);
@@ -156,6 +150,7 @@ export function Configuracion() {
     e.preventDefault();
     setErrorTelefonoAdmin(null);
 
+    if (!configuracion) return;
     const valor = telefonoAdminInput.trim();
     if (valor !== '' && !FORMATO_TELEFONO_E164.test(valor)) {
       setErrorTelefonoAdmin('Ingresa un número en formato internacional, ej. +573001234567, o déjalo vacío para desactivar el aviso.');
@@ -165,16 +160,7 @@ export function Configuracion() {
     setGuardandoTelefonoAdmin(true);
     try {
       const actualizado = await actualizarConfiguracion(
-        {
-          tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
-          telefonoNotificacionesAdmin: valor === '' ? null : valor,
-          nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
-          nombreEmpresa: configuracion?.nombreEmpresa ?? null,
-          nitEmpresa: configuracion?.nitEmpresa ?? null,
-          direccionEmpresa: configuracion?.direccionEmpresa ?? null,
-          telefonoEmpresa: configuracion?.telefonoEmpresa ?? null,
-          emailEmpresa: configuracion?.emailEmpresa ?? null,
-        },
+        { ...aRequest(configuracion), telefonoNotificacionesAdmin: valor === '' ? null : valor },
         token
       );
       setConfiguracion(actualizado);
@@ -194,21 +180,13 @@ export function Configuracion() {
     e.preventDefault();
     setErrorImpresora(null);
 
+    if (!configuracion) return;
     const valor = nombreImpresoraInput.trim();
 
     setGuardandoImpresora(true);
     try {
       const actualizado = await actualizarConfiguracion(
-        {
-          tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
-          telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
-          nombreImpresoraTickets: valor === '' ? null : valor,
-          nombreEmpresa: configuracion?.nombreEmpresa ?? null,
-          nitEmpresa: configuracion?.nitEmpresa ?? null,
-          direccionEmpresa: configuracion?.direccionEmpresa ?? null,
-          telefonoEmpresa: configuracion?.telefonoEmpresa ?? null,
-          emailEmpresa: configuracion?.emailEmpresa ?? null,
-        },
+        { ...aRequest(configuracion), nombreImpresoraTickets: valor === '' ? null : valor },
         token
       );
       setConfiguracion(actualizado);
@@ -226,22 +204,19 @@ export function Configuracion() {
 
   async function handleGuardarDatosEmpresa(e: FormEvent) {
     e.preventDefault();
+    if (!configuracion) return;
     setErrorDatosEmpresa(null);
 
     setGuardandoDatosEmpresa(true);
     try {
       const actualizado = await actualizarConfiguracion(
         {
-          tarifaIvaPorDefecto: configuracion?.tarifaIvaPorDefecto ?? 0,
-          telefonoNotificacionesAdmin: configuracion?.telefonoNotificacionesAdmin ?? null,
-          nombreImpresoraTickets: configuracion?.nombreImpresoraTickets ?? null,
-          nombreEmpresa: datosEmpresaInput.nombreEmpresa.trim() === '' ? null : datosEmpresaInput.nombreEmpresa.trim(),
-          nitEmpresa: datosEmpresaInput.nitEmpresa.trim() === '' ? null : datosEmpresaInput.nitEmpresa.trim(),
-          direccionEmpresa:
-            datosEmpresaInput.direccionEmpresa.trim() === '' ? null : datosEmpresaInput.direccionEmpresa.trim(),
-          telefonoEmpresa:
-            datosEmpresaInput.telefonoEmpresa.trim() === '' ? null : datosEmpresaInput.telefonoEmpresa.trim(),
-          emailEmpresa: datosEmpresaInput.emailEmpresa.trim() === '' ? null : datosEmpresaInput.emailEmpresa.trim(),
+          ...aRequest(configuracion),
+          nombreEmpresa: vacioANull(datosEmpresaInput.nombreEmpresa),
+          nitEmpresa: vacioANull(datosEmpresaInput.nitEmpresa),
+          direccionEmpresa: vacioANull(datosEmpresaInput.direccionEmpresa),
+          telefonoEmpresa: vacioANull(datosEmpresaInput.telefonoEmpresa),
+          emailEmpresa: vacioANull(datosEmpresaInput.emailEmpresa),
         },
         token
       );
@@ -558,6 +533,14 @@ export function Configuracion() {
           )}
         </CardContent>
       </Card>
+
+      <DatosFacturacionCard
+        configuracion={configuracion}
+        cargando={cargandoConfiguracion}
+        error={errorConfiguracion}
+        esAdmin={esAdmin}
+        onActualizada={setConfiguracion}
+      />
 
       <Card className="border-border">
         <CardHeader>
