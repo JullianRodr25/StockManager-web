@@ -27,7 +27,8 @@ export async function obtenerProductos(
   pagina: number,
   tamanoPagina: number,
   token: string | null,
-  categoriaId?: number
+  categoriaId?: number,
+  busqueda?: string
 ): Promise<ProductosPaginados> {
   const params = new URLSearchParams({
     pagina: String(pagina),
@@ -35,6 +36,9 @@ export async function obtenerProductos(
   });
   if (categoriaId !== undefined) {
     params.set('categoriaId', String(categoriaId));
+  }
+  if (busqueda?.trim()) {
+    params.set('busqueda', busqueda.trim());
   }
   return apiRequest<ProductosPaginados>(`/api/productos?${params.toString()}`, { token });
 }

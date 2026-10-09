@@ -167,12 +167,29 @@ export function Inventario() {
   const [errorImportacion, setErrorImportacion] = useState<string | null>(null);
   const [erroresImportacion, setErroresImportacion] = useState<ImportarProductoError[]>([]);
 
+  // Texto de búsqueda ya "asentado" (espera 300 ms tras dejar de escribir). Va en un ref para que
+  // todas las recargas (editar, desactivar, importar...) conserven la búsqueda sin tocar sus firmas.
+  const [busquedaAplicada, setBusquedaAplicada] = useState('');
+  const busquedaAplicadaRef = useRef('');
+  busquedaAplicadaRef.current = busquedaAplicada;
+
+  useEffect(() => {
+    const temporizador = setTimeout(() => setBusquedaAplicada(busqueda.trim()), 300);
+    return () => clearTimeout(temporizador);
+  }, [busqueda]);
+
   const cargarProductos = useCallback(
     async (paginaSolicitada: number, categoriaId: number | undefined) => {
       setCargando(true);
       setError(null);
       try {
-        const respuesta = await obtenerProductos(paginaSolicitada, TAMANO_PAGINA, token, categoriaId);
+        const respuesta = await obtenerProductos(
+          paginaSolicitada,
+          TAMANO_PAGINA,
+          token,
+          categoriaId,
+          busquedaAplicadaRef.current
+        );
         setProductos(respuesta.data);
         setPagina(respuesta.pagina);
         setTotalPaginas(respuesta.totalPaginas);
@@ -230,10 +247,10 @@ export function Inventario() {
   useEffect(() => {
     const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
     cargarProductos(1, categoriaId);
-    // Solo debe recargar cuando cambia el filtro de categoría; cargarProductos
-    // ya depende de "token" internamente.
+    // Recarga (desde la página 1) cuando cambia la categoría o el texto de búsqueda ya asentado;
+    // cargarProductos ya depende de "token" internamente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoriaFiltro]);
+  }, [categoriaFiltro, busquedaAplicada]);
 
   function irAPagina(nuevaPagina: number) {
     const categoriaId = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
@@ -245,12 +262,9 @@ export function Inventario() {
     if (!esAdmin || !mostrarInactivos) {
       lista = lista.filter((producto) => producto.activo);
     }
-    if (busqueda.trim()) {
-      const termino = busqueda.trim().toLowerCase();
-      lista = lista.filter((producto) => producto.nombre.toLowerCase().includes(termino));
-    }
+    // El filtro por nombre lo hace el servidor (sobre todo el inventario, no solo la página).
     return lista;
-  }, [productos, busqueda, esAdmin, mostrarInactivos]);
+  }, [productos, esAdmin, mostrarInactivos]);
 
   const agotados = alertas.filter((p) => p.stockActual <= 0).length;
   const stockBajo = alertas.length - agotados;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Printer, Receipt } from 'lucide-react';
+import { Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
@@ -96,10 +96,14 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
   }, [open, nombreImpresora, token]);
 
   function handleImprimir() {
-    window.print();
+    if (nombreImpresora) {
+      void imprimirEnTermica();
+    } else {
+      window.print();
+    }
   }
 
-  async function handleImprimirTiquete() {
+  async function imprimirEnTermica() {
     if (!venta || !documento || !nombreImpresora) return;
     setImprimiendoTiquete(true);
     try {
@@ -323,24 +327,17 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
             </div>
 
             <DialogFooter>
-              {nombreImpresora && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleImprimirTiquete}
-                  disabled={imprimiendoTiquete || !documento}
-                >
-                  {imprimiendoTiquete ? (
-                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-                  ) : (
-                    <Receipt className="h-4 w-4" />
-                  )}
-                  {debeAbrirCajon(venta) ? 'Imprimir tiquete y abrir caja' : 'Imprimir tiquete'}
-                </Button>
-              )}
-              <Button type="button" variant="gold" onClick={handleImprimir} disabled={!documento}>
-                <Printer className="h-4 w-4" />
-                Imprimir factura
+              {/* Un solo botón para imprimir. Con impresora de tiquetes configurada (QZ Tray) sale
+                  el tiquete térmico y, si el pago fue en efectivo, se abre el cajón; sin impresora
+                  configurada se usa la impresión normal del navegador, para no dejar a quien no
+                  tiene la térmica sin forma de imprimir. */}
+              <Button type="button" variant="gold" onClick={handleImprimir} disabled={!documento || imprimiendoTiquete}>
+                {imprimiendoTiquete ? (
+                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                ) : (
+                  <Printer className="h-4 w-4" />
+                )}
+                {nombreImpresora && debeAbrirCajon(venta) ? 'Imprimir factura y abrir caja' : 'Imprimir factura'}
               </Button>
             </DialogFooter>
           </>
