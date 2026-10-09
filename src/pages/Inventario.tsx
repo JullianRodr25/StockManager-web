@@ -5,20 +5,10 @@ import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { descargarArchivo } from '@/lib/descargarArchivo';
 import { ApiError, MENSAJE_ERROR_GENERICO } from '@/services/api';
+import { ResumenAlertasStock } from '@/components/ResumenAlertasStock';
+import type { FiltroAlertaStock } from '@/components/ResumenAlertasStock';
 import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
-import {
-  actualizarProducto,
-  ajustarStock,
-  buscarProductoPorCodigoBarras,
-  crearProducto,
-  desactivarProducto,
-  descargarPlantillaProductos,
-  exportarInventario,
-  importarProductos,
-  obtenerCategorias,
-  obtenerProductos,
-  reactivarProducto,
-} from '@/services/inventarioService';
+import { actualizarProducto, ajustarStock, buscarProductoPorCodigoBarras, crearProducto, desactivarProducto, descargarPlantillaProductos, exportarInventario, importarProductos, obtenerAlertasStock, obtenerCategorias, obtenerProductos, reactivarProducto } from '@/services/inventarioService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { obtenerProveedores } from '@/services/proveedorService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
@@ -159,6 +149,10 @@ export function Inventario() {
   const [guardandoAjusteStock, setGuardandoAjusteStock] = useState(false);
 
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  // Productos que necesitan reposición (viven en su propio endpoint: la tabla está paginada y
+  // un conteo hecho con la página visible sería engañoso). null = vista normal.
+  const [alertas, setAlertas] = useState<Producto[]>([]);
+  const [filtroAlerta, setFiltroAlerta] = useState<FiltroAlertaStock | null>(null);
   const [productoParaDesactivar, setProductoParaDesactivar] = useState<Producto | null>(null);
   const [desactivando, setDesactivando] = useState(false);
   const [procesandoReactivarId, setProcesandoReactivarId] = useState<number | null>(null);
@@ -195,6 +189,16 @@ export function Inventario() {
   // Cuando otro usuario vende algo (u otra acción que cambie el stock), esto actualiza el
   // stockActual de los productos ya cargados en esta pantalla sin recargar nada.
   useSincronizacionStock(setProductos);
+
+  // Se vuelve a consultar cada vez que cambia el inventario cargado: así el resumen también se
+  // actualiza cuando alguien vende, repone o edita el stock (ver useSincronizacionStock).
+  useEffect(() => {
+    obtenerAlertasStock(token)
+      .then(setAlertas)
+      .catch(() => {
+        // Sin el resumen, la tabla sigue funcionando; solo no se muestran los chips.
+      });
+  }, [token, productos]);
 
   useEffect(() => {
     obtenerCategorias(token)
@@ -247,6 +251,31 @@ export function Inventario() {
     }
     return lista;
   }, [productos, busqueda, esAdmin, mostrarInactivos]);
+
+  const agotados = alertas.filter((p) => p.stockActual <= 0).length;
+  const stockBajo = alertas.length - agotados;
+
+  // Si el chip activo se queda sin productos (se repuso todo), se vuelve a la vista normal en
+  // vez de dejar una tabla vacía sin el chip que permitiría salir.
+  useEffect(() => {
+    if ((filtroAlerta === 'agotado' && agotados === 0) || (filtroAlerta === 'bajo' && stockBajo === 0)) {
+      setFiltroAlerta(null);
+    }
+  }, [filtroAlerta, agotados, stockBajo]);
+
+  // Con un chip activo la tabla muestra la lista de alertas (ya completa, sin paginar), todavía
+  // respetando la búsqueda y la categoría elegidas.
+  const alertasFiltradas = useMemo(() => {
+    if (!filtroAlerta) return [];
+    const termino = busqueda.trim().toLowerCase();
+    return alertas.filter((p) => {
+      if (filtroAlerta === 'agotado' ? p.stockActual > 0 : p.stockActual <= 0) return false;
+      if (categoriaFiltro !== 'todas' && p.categoriaId !== Number(categoriaFiltro)) return false;
+      return !termino || p.nombre.toLowerCase().includes(termino);
+    });
+  }, [alertas, filtroAlerta, busqueda, categoriaFiltro]);
+
+  const productosAMostrar = filtroAlerta ? alertasFiltradas : productosFiltrados;
 
   const categoriaPorId = useMemo(
     () => new Map(categorias.map((c) => [c.id, c.nombre])),
@@ -645,8 +674,24 @@ export function Inventario() {
     const reactivando = procesandoReactivarId === producto.id;
 
     return (
-      <TableRow key={producto.id} className={cn(!producto.activo && 'opacity-50')}>
-        <TableCell className="font-medium text-navy">
+      <TableRow
+        key={producto.id}
+        className={cn(
+          !producto.activo && 'opacity-50',
+          // Tinte suave de toda la fila: el problema se ve al recorrer la tabla sin tener que
+          // fijarse en la columna de stock.
+          producto.activo && sinStock && 'bg-error-bg/40',
+          producto.activo && stockBajo && 'bg-gold/5'
+        )}
+      >
+        <TableCell
+          className={cn(
+            'font-medium text-navy',
+            // Barra lateral de color: refuerza el estado sin depender solo del tinte de fondo.
+            producto.activo && sinStock && 'border-l-4 border-error-text',
+            producto.activo && stockBajo && 'border-l-4 border-gold'
+          )}
+        >
           <span className="flex items-center gap-2">
             {producto.nombre}
             {!producto.activo && <Badge variant="outline">Inactivo</Badge>}
@@ -669,24 +714,29 @@ export function Inventario() {
           onDoubleClick={() => abrirModalStock(producto)}
           title={esAdmin ? 'Doble clic para cambiar el stock' : undefined}
         >
-          <span className="inline-flex items-center gap-2">
-              {producto.stockActual}
-              {/* Punto que titila (igual que un radar): rojo para estado crítico (sin stock, no
-                  se puede vender) y naranja/dorado para warning (por debajo o igual al mínimo
-                  configurado, todavía hay para vender pero hay que reponer pronto). Mismo
-                  criterio que ya dispara la notificación de stock bajo en la campana, así la
-                  señal es consistente en toda la app. */}
-              {sinStock ? (
-                <span className="relative inline-flex h-2.5 w-2.5 shrink-0" role="img" aria-label="Crítico: sin stock disponible">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-error-text opacity-75 motion-reduce:hidden" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-error-text" />
-                </span>
-              ) : stockBajo ? (
-                <span className="relative inline-flex h-2.5 w-2.5 shrink-0" role="img" aria-label="Warning: stock por debajo del mínimo">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-75 motion-reduce:hidden" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gold" />
-                </span>
-              ) : null}
+          <span className="inline-flex flex-col items-start gap-1">
+            <span className="inline-flex items-center gap-2">
+              <span className="tabular-nums">{producto.stockActual}</span>
+              {/* Etiqueta con texto (no solo un punto de color): dice qué pasa y qué hay que
+                  hacer. "Agotado" = no se puede vender; "Stock bajo" = igual o por debajo del
+                  mínimo configurado, todavía se vende pero hay que reponer. Mismo criterio que
+                  la notificación de stock bajo de la campana. */}
+              {sinStock && (
+                <Badge className="border-error-text/40 bg-error-bg text-error-text" role="status">
+                  Agotado
+                </Badge>
+              )}
+              {stockBajo && (
+                <Badge className="border-gold/50 bg-gold/15 text-gold" role="status">
+                  Stock bajo
+                </Badge>
+              )}
+            </span>
+            {(sinStock || stockBajo) && (
+              <span className="text-xs font-normal text-text-muted">
+                Reponer al menos {Math.max(producto.stockMinimo - producto.stockActual, 1)} u. para llegar al mínimo
+              </span>
+            )}
           </span>
         </TableCell>
         <TableCell className="text-navy">{producto.stockMinimo}</TableCell>
@@ -855,6 +905,13 @@ export function Inventario() {
         </div>
       )}
 
+      <ResumenAlertasStock
+        agotados={agotados}
+        stockBajo={stockBajo}
+        filtro={filtroAlerta}
+        onCambiarFiltro={setFiltroAlerta}
+      />
+
       <Card className="border-border">
         <CardContent className="p-0">
           <Table>
@@ -881,21 +938,21 @@ export function Inventario() {
                     <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
-              ) : productosFiltrados.length === 0 ? (
+              ) : productosAMostrar.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={esAdmin ? 10 : 8} className="py-8 text-center text-text-muted">
                     No se encontraron productos.
                   </TableCell>
                 </TableRow>
               ) : (
-                productosFiltrados.map((producto) => renderFilaProducto(producto))
+                productosAMostrar.map((producto) => renderFilaProducto(producto))
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {!productoEncontradoPorCodigo && (
+      {!productoEncontradoPorCodigo && !filtroAlerta && (
         <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
           <p className="text-sm text-text-muted">
             Página {pagina} de {totalPaginas} · {total} productos en total

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { ChangeEvent, FormEvent } from 'react';
-import { ImagePlus, Loader2, RotateCcw, Tags } from 'lucide-react';
+import { Bell, Building2, ImagePlus, Loader2, ReceiptText, RotateCcw, Tags } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useLogo } from '@/context/LogoContext';
@@ -9,13 +10,23 @@ import { actualizarConfiguracion, aRequest, obtenerConfiguracion } from '@/servi
 import type { ConfiguracionGeneral } from '@/types/configuracion';
 import { CategoriasDialog } from '@/components/CategoriasDialog';
 import { DatosFacturacionCard } from '@/components/DatosFacturacionCard';
+import { NavegacionConfiguracion } from '@/components/NavegacionConfiguracion';
+import type { SeccionConfiguracion } from '@/components/NavegacionConfiguracion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 
 const TAMANO_MAXIMO_BYTES = 3 * 1024 * 1024; // 3 MB
+
+// Secciones del módulo. "soloAdmin": el contenido solo existe para un administrador (el backend
+// ni siquiera expone esos datos a otros roles), así que ni se ofrece la entrada en el menú.
+const SECCIONES: (SeccionConfiguracion & { soloAdmin?: boolean })[] = [
+  { id: 'empresa', titulo: 'Empresa', descripcion: 'Logo, razón social, NIT y contacto', icono: Building2 },
+  { id: 'facturacion', titulo: 'Facturación', descripcion: 'Resolución DIAN, IVA e impresora', icono: ReceiptText },
+  { id: 'catalogo', titulo: 'Catálogo', descripcion: 'Categorías de productos', icono: Tags, soloAdmin: true },
+  { id: 'notificaciones', titulo: 'Notificaciones', descripcion: 'Avisos por WhatsApp', icono: Bell, soloAdmin: true },
+];
 
 const vacioANull = (texto: string): string | null => (texto.trim() === '' ? null : texto.trim());
 
@@ -23,6 +34,15 @@ export function Configuracion() {
   const { usuario, token } = useAuth();
   const esAdmin = usuario?.rol === 'Admin';
   const { logoUrl, esLogoPersonalizado, actualizarLogo, restaurarLogoPredeterminado } = useLogo();
+
+  // La sección activa vive en la URL (?seccion=facturacion): recargar o compartir el enlace
+  // vuelve a la misma sección, y el botón "atrás" del navegador funciona como se espera.
+  const [parametros, setParametros] = useSearchParams();
+  const seccionesVisibles = SECCIONES.filter((seccion) => !seccion.soloAdmin || esAdmin);
+  const seccionActiva = seccionesVisibles.some((seccion) => seccion.id === parametros.get('seccion'))
+    ? (parametros.get('seccion') as string)
+    : seccionesVisibles[0].id;
+  const cambiarSeccion = (id: string) => setParametros({ seccion: id });
 
   const [dialogCategoriasAbierto, setDialogCategoriasAbierto] = useState(false);
 
@@ -239,368 +259,390 @@ export function Configuracion() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
         <h2 className="font-heading text-2xl font-semibold text-navy">Configuración</h2>
-        <p className="text-sm text-text-muted">Ajustes generales del sistema.</p>
+        <p className="text-sm text-text-muted">Ajustes generales del sistema, agrupados por tema.</p>
       </div>
 
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="text-navy">Logotipo de la empresa</CardTitle>
-          <CardDescription>
-            Este logo se muestra en el menú lateral y en la pantalla de inicio de sesión.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-            <img
-              src={logoUrl}
-              alt="Logo actual de la empresa"
-              className="h-24 w-24 shrink-0 rounded-full border-2 border-gold object-cover"
+      <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <NavegacionConfiguracion
+          secciones={seccionesVisibles}
+          activa={seccionActiva}
+          onSeleccionar={cambiarSeccion}
+        />
+
+        <div className="min-w-0 space-y-4">
+          {seccionActiva === 'empresa' && (
+            <>
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-navy">Logotipo de la empresa</CardTitle>
+                <CardDescription>
+                  Este logo se muestra en el menú lateral y en la pantalla de inicio de sesión.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+                  <img
+                    src={logoUrl}
+                    alt="Logo actual de la empresa"
+                    className="h-24 w-24 shrink-0 rounded-full border-2 border-gold object-cover"
+                  />
+
+                  {esAdmin ? (
+                    <div className="flex flex-1 flex-col gap-3">
+                      <input
+                        ref={inputArchivoRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleArchivoSeleccionado}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="gold" onClick={handleClickCambiarLogo} disabled={cargandoLogo}>
+                          <ImagePlus className="h-4 w-4" />
+                          {cargandoLogo ? 'Cargando...' : 'Cambiar logo'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleRestaurarLogo}
+                          disabled={cargandoLogo || !esLogoPersonalizado}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          Restaurar predeterminado
+                        </Button>
+                      </div>
+                      <p className="text-xs text-text-muted">
+                        Formatos admitidos: PNG, JPG o SVG. Tamaño máximo 3 MB.
+                      </p>
+                      {errorLogo && (
+                        <div
+                          className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text"
+                          role="alert"
+                        >
+                          {errorLogo}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-text-muted">
+                      Solo un administrador puede cambiar el logo de la empresa.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-navy">Datos de la empresa (facturación)</CardTitle>
+                <CardDescription>
+                  Razón social, NIT, dirección, teléfono y correo que se imprimen en el encabezado de la
+                  factura y del tiquete físico.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {cargandoConfiguracion ? (
+                  <div className="flex items-center gap-2 text-sm text-text-muted">
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    Cargando datos de la empresa...
+                  </div>
+                ) : errorConfiguracion ? (
+                  <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                    {errorConfiguracion}
+                  </div>
+                ) : esAdmin ? (
+                  <form onSubmit={handleGuardarDatosEmpresa} className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="nombreEmpresa">Razón social</Label>
+                        <Input
+                          id="nombreEmpresa"
+                          placeholder="Ej. Ferretería Gold S.A.S."
+                          value={datosEmpresaInput.nombreEmpresa}
+                          onChange={(e) =>
+                            setDatosEmpresaInput((actual) => ({ ...actual, nombreEmpresa: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="nitEmpresa">NIT</Label>
+                        <Input
+                          id="nitEmpresa"
+                          placeholder="Ej. 1012355433-1"
+                          value={datosEmpresaInput.nitEmpresa}
+                          onChange={(e) => setDatosEmpresaInput((actual) => ({ ...actual, nitEmpresa: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label htmlFor="direccionEmpresa">Dirección</Label>
+                        <Input
+                          id="direccionEmpresa"
+                          placeholder="Ej. Cl 1 A 13 39 Sur, Bogotá, D.C."
+                          value={datosEmpresaInput.direccionEmpresa}
+                          onChange={(e) =>
+                            setDatosEmpresaInput((actual) => ({ ...actual, direccionEmpresa: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="telefonoEmpresa">Teléfono</Label>
+                        <Input
+                          id="telefonoEmpresa"
+                          placeholder="Ej. 3134663029"
+                          value={datosEmpresaInput.telefonoEmpresa}
+                          onChange={(e) =>
+                            setDatosEmpresaInput((actual) => ({ ...actual, telefonoEmpresa: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="emailEmpresa">Correo</Label>
+                        <Input
+                          id="emailEmpresa"
+                          type="email"
+                          placeholder="Ej. contacto@ferreteriagold.com"
+                          value={datosEmpresaInput.emailEmpresa}
+                          onChange={(e) => setDatosEmpresaInput((actual) => ({ ...actual, emailEmpresa: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-text-muted">
+                      Todos los campos son opcionales; el que se deje vacío simplemente no aparece en el tiquete.
+                    </p>
+
+                    {errorDatosEmpresa && (
+                      <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                        {errorDatosEmpresa}
+                      </div>
+                    )}
+
+                    <Button type="submit" variant="gold" disabled={guardandoDatosEmpresa}>
+                      {guardandoDatosEmpresa ? 'Guardando...' : 'Guardar datos de la empresa'}
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="text-sm text-navy">
+                    {configuracion?.nombreEmpresa ?? 'Sin configurar (solo un administrador puede hacerlo)'}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            </>
+          )}
+
+          {seccionActiva === 'facturacion' && (
+            <>
+            <DatosFacturacionCard
+              configuracion={configuracion}
+              cargando={cargandoConfiguracion}
+              error={errorConfiguracion}
+              esAdmin={esAdmin}
+              onActualizada={setConfiguracion}
             />
 
-            {esAdmin ? (
-              <div className="flex flex-1 flex-col gap-3">
-                <input
-                  ref={inputArchivoRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleArchivoSeleccionado}
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="gold" onClick={handleClickCambiarLogo} disabled={cargandoLogo}>
-                    <ImagePlus className="h-4 w-4" />
-                    {cargandoLogo ? 'Cargando...' : 'Cambiar logo'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleRestaurarLogo}
-                    disabled={cargandoLogo || !esLogoPersonalizado}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Restaurar predeterminado
-                  </Button>
-                </div>
-                <p className="text-xs text-text-muted">
-                  Formatos admitidos: PNG, JPG o SVG. Tamaño máximo 3 MB.
-                </p>
-                {errorLogo && (
-                  <div
-                    className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text"
-                    role="alert"
-                  >
-                    {errorLogo}
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-navy">Tarifa de IVA general</CardTitle>
+                <CardDescription>
+                  Se aplica por defecto a los productos nuevos que no especifiquen una tarifa propia.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {cargandoConfiguracion ? (
+                  <div className="flex items-center gap-2 text-sm text-text-muted">
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    Cargando tarifa vigente...
                   </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-text-muted">
-                Solo un administrador puede cambiar el logo de la empresa.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="text-navy">Tarifa de IVA general</CardTitle>
-          <CardDescription>
-            Se aplica por defecto a los productos nuevos que no especifiquen una tarifa propia.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {cargandoConfiguracion ? (
-            <div className="flex items-center gap-2 text-sm text-text-muted">
-              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-              Cargando tarifa vigente...
-            </div>
-          ) : errorConfiguracion ? (
-            <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-              {errorConfiguracion}
-            </div>
-          ) : esAdmin ? (
-            <form onSubmit={handleGuardarIva} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="tarifaIvaPorDefecto">IVA (%)</Label>
-                <div className="relative max-w-[10rem]">
-                  <Input
-                    id="tarifaIvaPorDefecto"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={tarifaIvaInput}
-                    onChange={(e) => setTarifaIvaInput(e.target.value)}
-                    className="pr-8"
-                    required
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
-                    %
-                  </span>
-                </div>
-              </div>
-
-              {errorIva && (
-                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                  {errorIva}
-                </div>
-              )}
-
-              <Button type="submit" variant="gold" disabled={guardandoIva}>
-                {guardandoIva ? 'Guardando...' : 'Guardar tarifa'}
-              </Button>
-            </form>
-          ) : (
-            <p className="text-sm text-navy">
-              Tarifa vigente: <span className="font-semibold">{configuracion?.tarifaIvaPorDefecto}%</span>
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {esAdmin && (
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-navy">Categorías de productos</CardTitle>
-            <CardDescription>
-              Maestro de categorías. Los productos y la importación de Excel solo aceptan las categorías que
-              estén aquí.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button type="button" variant="gold" onClick={() => setDialogCategoriasAbierto(true)}>
-              <Tags className="h-4 w-4" /> Categorías
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/*
-        A diferencia de las tarjetas de arriba (que muestran una vista de solo lectura a
-        Empleado), esta tarjeta no se muestra en absoluto si no eres Admin: el backend
-        directamente omite este teléfono en la respuesta para cualquier otro rol, así que no
-        habría nada real que mostrarle a un Empleado aquí — es justo el aislamiento "por rol,
-        por seguridad" que se pidió para este dato.
-      */}
-      {esAdmin && (
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-navy">Notificaciones por WhatsApp</CardTitle>
-            <CardDescription>
-              Número que recibe los avisos administrativos: productos que llegan a su stock
-              mínimo, pedidos nuevos y cuentas por pagar próximas a vencer. Solo un administrador puede ver y cambiar este dato.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {cargandoConfiguracion ? (
-              <div className="flex items-center gap-2 text-sm text-text-muted">
-                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-                Cargando configuración de notificaciones...
-              </div>
-            ) : errorConfiguracion ? (
-              <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                {errorConfiguracion}
-              </div>
-            ) : (
-              <form onSubmit={handleGuardarTelefonoAdmin} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="telefonoNotificacionesAdmin">Teléfono de WhatsApp</Label>
-                  <Input
-                    id="telefonoNotificacionesAdmin"
-                    type="tel"
-                    placeholder="+573001234567"
-                    value={telefonoAdminInput}
-                    onChange={(e) => setTelefonoAdminInput(e.target.value)}
-                    className="max-w-xs"
-                  />
-                  <p className="text-xs text-text-muted">
-                    Formato internacional (E.164), ej. +573001234567. Déjalo vacío para desactivar
-                    este aviso.
-                  </p>
-                </div>
-
-                {errorTelefonoAdmin && (
+                ) : errorConfiguracion ? (
                   <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                    {errorTelefonoAdmin}
+                    {errorConfiguracion}
                   </div>
+                ) : esAdmin ? (
+                  <form onSubmit={handleGuardarIva} className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="tarifaIvaPorDefecto">IVA (%)</Label>
+                      <div className="relative max-w-[10rem]">
+                        <Input
+                          id="tarifaIvaPorDefecto"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={tarifaIvaInput}
+                          onChange={(e) => setTarifaIvaInput(e.target.value)}
+                          className="pr-8"
+                          required
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">
+                          %
+                        </span>
+                      </div>
+                    </div>
+
+                    {errorIva && (
+                      <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                        {errorIva}
+                      </div>
+                    )}
+
+                    <Button type="submit" variant="gold" disabled={guardandoIva}>
+                      {guardandoIva ? 'Guardando...' : 'Guardar tarifa'}
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="text-sm text-navy">
+                    Tarifa vigente: <span className="font-semibold">{configuracion?.tarifaIvaPorDefecto}%</span>
+                  </p>
                 )}
+              </CardContent>
+            </Card>
 
-                <Button type="submit" variant="gold" disabled={guardandoTelefonoAdmin}>
-                  {guardandoTelefonoAdmin ? 'Guardando...' : 'Guardar teléfono'}
-                </Button>
-              </form>
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="text-navy">Impresora de tiquetes</CardTitle>
+                <CardDescription>
+                  Nombre exacto de la impresora térmica del mostrador, tal como aparece en QZ Tray. Se
+                  usa para imprimir la factura y para abrir el cajón de dinero al finalizar una venta en
+                  efectivo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {cargandoConfiguracion ? (
+                  <div className="flex items-center gap-2 text-sm text-text-muted">
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    Cargando configuración de la impresora...
+                  </div>
+                ) : errorConfiguracion ? (
+                  <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                    {errorConfiguracion}
+                  </div>
+                ) : esAdmin ? (
+                  <form onSubmit={handleGuardarImpresora} className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="nombreImpresoraTickets">Nombre de la impresora</Label>
+                      <Input
+                        id="nombreImpresoraTickets"
+                        placeholder="Ej. POS-80"
+                        value={nombreImpresoraInput}
+                        onChange={(e) => setNombreImpresoraInput(e.target.value)}
+                        className="max-w-xs"
+                      />
+                      <p className="text-xs text-text-muted">
+                        Déjalo vacío si todavía no se ha instalado QZ Tray en el computador del mostrador.
+                      </p>
+                    </div>
+
+                    {errorImpresora && (
+                      <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                        {errorImpresora}
+                      </div>
+                    )}
+
+                    <Button type="submit" variant="gold" disabled={guardandoImpresora}>
+                      {guardandoImpresora ? 'Guardando...' : 'Guardar impresora'}
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="text-sm text-navy">
+                    Impresora configurada:{' '}
+                    <span className="font-semibold">
+                      {configuracion?.nombreImpresoraTickets ?? 'Ninguna (solo un administrador puede configurarla)'}
+                    </span>
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            </>
+          )}
+
+          {seccionActiva === 'catalogo' && esAdmin && (
+            <>
+            {esAdmin && (
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="text-navy">Categorías de productos</CardTitle>
+                  <CardDescription>
+                    Maestro de categorías. Los productos y la importación de Excel solo aceptan las categorías que
+                    estén aquí.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button type="button" variant="gold" onClick={() => setDialogCategoriasAbierto(true)}>
+                    <Tags className="h-4 w-4" /> Categorías
+                  </Button>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="text-navy">Datos de la empresa (facturación)</CardTitle>
-          <CardDescription>
-            Razón social, NIT, dirección, teléfono y correo que se imprimen en el encabezado de la
-            factura y del tiquete físico.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {cargandoConfiguracion ? (
-            <div className="flex items-center gap-2 text-sm text-text-muted">
-              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-              Cargando datos de la empresa...
-            </div>
-          ) : errorConfiguracion ? (
-            <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-              {errorConfiguracion}
-            </div>
-          ) : esAdmin ? (
-            <form onSubmit={handleGuardarDatosEmpresa} className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="nombreEmpresa">Razón social</Label>
-                  <Input
-                    id="nombreEmpresa"
-                    placeholder="Ej. Ferretería Gold S.A.S."
-                    value={datosEmpresaInput.nombreEmpresa}
-                    onChange={(e) =>
-                      setDatosEmpresaInput((actual) => ({ ...actual, nombreEmpresa: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nitEmpresa">NIT</Label>
-                  <Input
-                    id="nitEmpresa"
-                    placeholder="Ej. 1012355433-1"
-                    value={datosEmpresaInput.nitEmpresa}
-                    onChange={(e) => setDatosEmpresaInput((actual) => ({ ...actual, nitEmpresa: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="direccionEmpresa">Dirección</Label>
-                  <Input
-                    id="direccionEmpresa"
-                    placeholder="Ej. Cl 1 A 13 39 Sur, Bogotá, D.C."
-                    value={datosEmpresaInput.direccionEmpresa}
-                    onChange={(e) =>
-                      setDatosEmpresaInput((actual) => ({ ...actual, direccionEmpresa: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="telefonoEmpresa">Teléfono</Label>
-                  <Input
-                    id="telefonoEmpresa"
-                    placeholder="Ej. 3134663029"
-                    value={datosEmpresaInput.telefonoEmpresa}
-                    onChange={(e) =>
-                      setDatosEmpresaInput((actual) => ({ ...actual, telefonoEmpresa: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="emailEmpresa">Correo</Label>
-                  <Input
-                    id="emailEmpresa"
-                    type="email"
-                    placeholder="Ej. contacto@ferreteriagold.com"
-                    value={datosEmpresaInput.emailEmpresa}
-                    onChange={(e) => setDatosEmpresaInput((actual) => ({ ...actual, emailEmpresa: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <p className="text-xs text-text-muted">
-                Todos los campos son opcionales; el que se deje vacío simplemente no aparece en el tiquete.
-              </p>
-
-              {errorDatosEmpresa && (
-                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                  {errorDatosEmpresa}
-                </div>
-              )}
-
-              <Button type="submit" variant="gold" disabled={guardandoDatosEmpresa}>
-                {guardandoDatosEmpresa ? 'Guardando...' : 'Guardar datos de la empresa'}
-              </Button>
-            </form>
-          ) : (
-            <p className="text-sm text-navy">
-              {configuracion?.nombreEmpresa ?? 'Sin configurar (solo un administrador puede hacerlo)'}
-            </p>
+            </>
           )}
-        </CardContent>
-      </Card>
 
-      <DatosFacturacionCard
-        configuracion={configuracion}
-        cargando={cargandoConfiguracion}
-        error={errorConfiguracion}
-        esAdmin={esAdmin}
-        onActualizada={setConfiguracion}
-      />
+          {seccionActiva === 'notificaciones' && esAdmin && (
+            <>
+            {/*
+              A diferencia de las tarjetas de arriba (que muestran una vista de solo lectura a
+              Empleado), esta tarjeta no se muestra en absoluto si no eres Admin: el backend
+              directamente omite este teléfono en la respuesta para cualquier otro rol, así que no
+              habría nada real que mostrarle a un Empleado aquí — es justo el aislamiento "por rol,
+              por seguridad" que se pidió para este dato.
+            */}
+            {esAdmin && (
+              <Card className="border-border">
+                <CardHeader>
+                  <CardTitle className="text-navy">Notificaciones por WhatsApp</CardTitle>
+                  <CardDescription>
+                    Número que recibe los avisos administrativos: productos que llegan a su stock
+                    mínimo, pedidos nuevos y cuentas por pagar próximas a vencer. Solo un administrador puede ver y cambiar este dato.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {cargandoConfiguracion ? (
+                    <div className="flex items-center gap-2 text-sm text-text-muted">
+                      <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                      Cargando configuración de notificaciones...
+                    </div>
+                  ) : errorConfiguracion ? (
+                    <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                      {errorConfiguracion}
+                    </div>
+                  ) : (
+                    <form onSubmit={handleGuardarTelefonoAdmin} className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="telefonoNotificacionesAdmin">Teléfono de WhatsApp</Label>
+                        <Input
+                          id="telefonoNotificacionesAdmin"
+                          type="tel"
+                          placeholder="+573001234567"
+                          value={telefonoAdminInput}
+                          onChange={(e) => setTelefonoAdminInput(e.target.value)}
+                          className="max-w-xs"
+                        />
+                        <p className="text-xs text-text-muted">
+                          Formato internacional (E.164), ej. +573001234567. Déjalo vacío para desactivar
+                          este aviso.
+                        </p>
+                      </div>
 
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle className="text-navy">Impresora de tiquetes</CardTitle>
-          <CardDescription>
-            Nombre exacto de la impresora térmica del mostrador, tal como aparece en QZ Tray. Se
-            usa para imprimir la factura y para abrir el cajón de dinero al finalizar una venta en
-            efectivo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {cargandoConfiguracion ? (
-            <div className="flex items-center gap-2 text-sm text-text-muted">
-              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-              Cargando configuración de la impresora...
-            </div>
-          ) : errorConfiguracion ? (
-            <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-              {errorConfiguracion}
-            </div>
-          ) : esAdmin ? (
-            <form onSubmit={handleGuardarImpresora} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="nombreImpresoraTickets">Nombre de la impresora</Label>
-                <Input
-                  id="nombreImpresoraTickets"
-                  placeholder="Ej. POS-80"
-                  value={nombreImpresoraInput}
-                  onChange={(e) => setNombreImpresoraInput(e.target.value)}
-                  className="max-w-xs"
-                />
-                <p className="text-xs text-text-muted">
-                  Déjalo vacío si todavía no se ha instalado QZ Tray en el computador del mostrador.
-                </p>
-              </div>
+                      {errorTelefonoAdmin && (
+                        <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                          {errorTelefonoAdmin}
+                        </div>
+                      )}
 
-              {errorImpresora && (
-                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                  {errorImpresora}
-                </div>
-              )}
-
-              <Button type="submit" variant="gold" disabled={guardandoImpresora}>
-                {guardandoImpresora ? 'Guardando...' : 'Guardar impresora'}
-              </Button>
-            </form>
-          ) : (
-            <p className="text-sm text-navy">
-              Impresora configurada:{' '}
-              <span className="font-semibold">
-                {configuracion?.nombreImpresoraTickets ?? 'Ninguna (solo un administrador puede configurarla)'}
-              </span>
-            </p>
+                      <Button type="submit" variant="gold" disabled={guardandoTelefonoAdmin}>
+                        {guardandoTelefonoAdmin ? 'Guardando...' : 'Guardar teléfono'}
+                      </Button>
+                    </form>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            </>
           )}
-        </CardContent>
-      </Card>
-
-      <Separator />
-
-      <p className="text-sm text-text-muted">Más ajustes próximamente.</p>
+        </div>
+      </div>
 
       {esAdmin && (
         <CategoriasDialog abierto={dialogCategoriasAbierto} onCambiarAbierto={setDialogCategoriasAbierto} />

@@ -39,6 +39,11 @@ export async function obtenerProductos(
   return apiRequest<ProductosPaginados>(`/api/productos?${params.toString()}`, { token });
 }
 
+/** Productos activos con stock igual o por debajo del mínimo (agotados primero). */
+export async function obtenerAlertasStock(token: string | null): Promise<Producto[]> {
+  return apiRequest<Producto[]>('/api/productos/alertas-stock', { token });
+}
+
 export async function obtenerProductoPorId(id: number, token: string | null): Promise<Producto> {
   return apiRequest<Producto>(`/api/productos/${id}`, { token });
 }
