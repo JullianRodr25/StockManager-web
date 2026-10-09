@@ -60,6 +60,39 @@ function obtenerMensajeError(data: unknown, mensajePredeterminado: string): stri
   return mensajePredeterminado;
 }
 
+// Convierte una respuesta HTTP fallida en un ApiError con el mejor mensaje disponible. Está
+// separado de apiRequest para que las descargas de archivos (que no leen JSON en el caso feliz)
+// traten los errores exactamente igual: sesión vencida, mensaje del backend o código HTTP.
+async function lanzarErrorDeRespuesta(response: Response, token?: string | null): Promise<never> {
+  // El backend devuelve { message: "..." } en errores 400/401,
+  // según lo definido en AuthController.
+  let message = MENSAJE_ERROR_GENERICO;
+  let data: unknown;
+  try {
+    data = await response.json();
+    message = obtenerMensajeError(data, message);
+  } catch {
+    // La respuesta no tenía JSON (ej. 401 de JWT vencido, 500 sin body o una página de error
+    // HTML de Azure en un 502/503): se usa el mensaje genérico.
+  }
+
+  // Un 401 en una llamada que SÍ llevaba token significa que el JWT venció (dura 60 min) o ya
+  // no es válido. Como esa respuesta llega sin body, antes se veía como un "error inesperado"
+  // indescifrable. En el login no hay token, así que un 401 allí (credenciales malas) conserva
+  // el mensaje del backend.
+  if (response.status === 401 && token) {
+    manejadorSesionVencida?.();
+    throw new ApiError(MENSAJE_SESION_VENCIDA, response.status, data);
+  }
+
+  // Si no hay un mensaje propio del backend, se agrega el código HTTP: permite distinguir de
+  // un vistazo un 502/503 (servidor caído o reiniciando) de un 500 (bug) o un 429.
+  if (message === MENSAJE_ERROR_GENERICO) {
+    message = `${MENSAJE_ERROR_GENERICO} (HTTP ${response.status})`;
+  }
+  throw new ApiError(message, response.status, data);
+}
+
 export async function apiRequest<TResponse>(
   path: string,
   options: RequestOptions = {}
@@ -84,33 +117,7 @@ export async function apiRequest<TResponse>(
   });
 
   if (!response.ok) {
-    // El backend devuelve { message: "..." } en errores 400/401,
-    // según lo definido en AuthController.
-    let message = MENSAJE_ERROR_GENERICO;
-    let data: unknown;
-    try {
-      data = await response.json();
-      message = obtenerMensajeError(data, message);
-    } catch {
-      // La respuesta no tenía JSON (ej. 401 de JWT vencido, 500 sin body o una página de error
-      // HTML de Azure en un 502/503): se usa el mensaje genérico.
-    }
-
-    // Un 401 en una llamada que SÍ llevaba token significa que el JWT venció (dura 60 min) o ya
-    // no es válido. Como esa respuesta llega sin body, antes se veía como un "error inesperado"
-    // indescifrable. En el login no hay token, así que un 401 allí (credenciales malas) conserva
-    // el mensaje del backend.
-    if (response.status === 401 && token) {
-      manejadorSesionVencida?.();
-      throw new ApiError(MENSAJE_SESION_VENCIDA, response.status, data);
-    }
-
-    // Si no hay un mensaje propio del backend, se agrega el código HTTP: permite distinguir de
-    // un vistazo un 502/503 (servidor caído o reiniciando) de un 500 (bug) o un 429.
-    if (message === MENSAJE_ERROR_GENERICO) {
-      message = `${MENSAJE_ERROR_GENERICO} (HTTP ${response.status})`;
-    }
-    throw new ApiError(message, response.status, data);
+    return lanzarErrorDeRespuesta(response, token);
   }
 
   // Algunos endpoints (ej. futuros DELETE) pueden no devolver body.
@@ -119,4 +126,19 @@ export async function apiRequest<TResponse>(
     return response.json() as Promise<TResponse>;
   }
   return undefined as TResponse;
+}
+
+// Descarga un archivo binario (ej. un .xlsx) con el token del usuario. No se puede usar un enlace
+// <a href> directo porque el navegador no enviaría el header Authorization.
+export async function apiDescargarArchivo(path: string, token?: string | null): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: 'GET', headers });
+  if (!response.ok) {
+    return lanzarErrorDeRespuesta(response, token);
+  }
+  return response.blob();
 }

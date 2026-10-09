@@ -1,4 +1,4 @@
-import { apiRequest } from './api';
+import { apiDescargarArchivo, apiRequest } from './api';
 import type {
   ActualizarProductoRequest,
   Categoria,
@@ -152,4 +152,14 @@ export async function generarEtiquetas(
     body: productoIds,
     token,
   });
+}
+
+// Excel de productos. Se piden con fetch + token (no con un enlace directo) porque los endpoints
+// exigen el header Authorization; el nombre del archivo lo decide quien llama (ver Inventario.tsx).
+export async function descargarPlantillaProductos(token: string | null): Promise<Blob> {
+  return apiDescargarArchivo('/api/productos/plantilla-excel', token);
+}
+
+export async function exportarInventario(token: string | null): Promise<Blob> {
+  return apiDescargarArchivo('/api/productos/exportar', token);
 }

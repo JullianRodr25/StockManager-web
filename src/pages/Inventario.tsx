@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
-import { Barcode, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
+import { Barcode, ChevronDown, Download, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
+import { descargarArchivo } from '@/lib/descargarArchivo';
 import { ApiError, MENSAJE_ERROR_GENERICO } from '@/services/api';
 import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import {
@@ -11,6 +12,8 @@ import {
   buscarProductoPorCodigoBarras,
   crearProducto,
   desactivarProducto,
+  descargarPlantillaProductos,
+  exportarInventario,
   importarProductos,
   obtenerCategorias,
   obtenerProductos,
@@ -43,6 +46,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
@@ -159,6 +168,7 @@ export function Inventario() {
 
   const inputArchivoRef = useRef<HTMLInputElement>(null);
   const [importando, setImportando] = useState(false);
+  const [descargandoExcel, setDescargandoExcel] = useState<'inventario' | 'plantilla' | null>(null);
   const [resultadoImportacion, setResultadoImportacion] = useState<ImportarProductosResponse | null>(null);
   const [dialogImportacionAbierto, setDialogImportacionAbierto] = useState(false);
   const [errorImportacion, setErrorImportacion] = useState<string | null>(null);
@@ -465,6 +475,29 @@ export function Inventario() {
     }
   }
 
+  // Descarga el Excel de inventario o la plantilla vacía. Un solo manejador para ambos: solo
+  // cambia qué se pide y cómo se llama el archivo.
+  async function handleDescargarExcel(tipo: 'inventario' | 'plantilla') {
+    if (descargandoExcel) return;
+    setDescargandoExcel(tipo);
+    try {
+      if (tipo === 'inventario') {
+        const archivo = await exportarInventario(token);
+        const hoy = new Date().toLocaleDateString('en-CA'); // AAAA-MM-DD en hora local
+        descargarArchivo(archivo, `inventario-${hoy}.xlsx`);
+        toast.success('Inventario exportado');
+      } else {
+        const archivo = await descargarPlantillaProductos(token);
+        descargarArchivo(archivo, 'plantilla-productos.xlsx');
+        toast.success('Plantilla descargada');
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo descargar el archivo.');
+    } finally {
+      setDescargandoExcel(null);
+    }
+  }
+
   function handleClickImportar() {
     inputArchivoRef.current?.click();
   }
@@ -721,6 +754,27 @@ export function Inventario() {
               {importando ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Upload className="h-4 w-4" />}
               Importar Excel
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={descargandoExcel !== null}>
+                  {descargandoExcel !== null ? (
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  Exportar
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="cursor-pointer" onClick={() => handleDescargarExcel('inventario')}>
+                  Inventario actual (con datos)
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer" onClick={() => handleDescargarExcel('plantilla')}>
+                  Plantilla vacía (productos nuevos)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="gold" onClick={abrirDialogNuevo}>
               <Plus className="h-4 w-4" />
               Nuevo producto
@@ -732,9 +786,10 @@ export function Inventario() {
       {esAdmin && (
         <p className="text-xs text-text-muted">
           Columnas del Excel: Nombre, Categoría (debe existir en Configuración → Categorías; si alguna no
-          existe, el archivo completo se rechaza), Precio, StockInicial, StockMinimo, CodigoBarras (opcional),
+          existe, el archivo completo se rechaza), Precio, StockInicial (mayor a 0), StockMinimo, CodigoBarras (opcional),
           TarifaIva (opcional: vacía aplica el IVA general vigente, 0 marca el producto como exento),
-          Costo (opcional). Doble clic en "Stock actual" para cambiarlo rápido.
+          Costo (opcional), Proveedor (opcional). El menú Exportar descarga la plantilla vacía con listas
+          desplegables o una copia del inventario. Doble clic en "Stock actual" para cambiarlo rápido.
         </p>
       )}
 
