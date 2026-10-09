@@ -7,6 +7,8 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   error: Error | null;
+  /** Pila de componentes donde ocurrió el error (qué pantalla/componente lo provocó). */
+  componentStack: string | null;
 }
 
 /**
@@ -19,14 +21,15 @@ interface ErrorBoundaryState {
  * componentDidCatch a través de clases (no hay un hook equivalente).
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { error: null };
+  state: ErrorBoundaryState = { error: null, componentStack: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { error };
+    return { error, componentStack: null };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Error de renderizado no controlado:', error, info.componentStack);
+    this.setState({ componentStack: info.componentStack ?? null });
   }
 
   render() {
@@ -39,6 +42,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           Ocurrió un error inesperado en esta pantalla. Recarga la página para continuar; si vuelve a pasar,
           avísanos qué estabas haciendo.
         </p>
+        {/* Detalle técnico: no dice nada sensible, solo qué falló y dónde. Permite diagnosticar
+            con una captura de pantalla, sin tener que abrir la consola del navegador. */}
+        <details className="max-w-xl text-left text-xs text-text-muted">
+          <summary className="cursor-pointer text-center">Detalles técnicos</summary>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border p-3">
+            {this.state.error.name}: {this.state.error.message}
+            {this.state.componentStack}
+          </pre>
+        </details>
         <button
           type="button"
           onClick={() => window.location.reload()}
