@@ -127,3 +127,18 @@
     print-color-adjust: exact;
   }
 }
+
+/* Oculta las flechitas (spinners) de un <input type="number">: en campos de dinero un clic o la
+   rueda del mouse cambiaban el valor sin querer. El teclado numérico sigue funcionando igual. */
+@layer utilities {
+  .sin-flechas {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .sin-flechas::-webkit-outer-spin-button,
+  .sin-flechas::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}

@@ -728,6 +728,7 @@ export function FiadoPage() {
                     <Input
                       id="montoAbono"
                       type="number"
+                      className="sin-flechas"
                       min="1"
                       step="1"
                       value={montoAbono}
@@ -758,6 +759,7 @@ export function FiadoPage() {
                     <Input
                       id="montoRecibidoAbono"
                       type="number"
+                      className="sin-flechas"
                       min="0"
                       step="1"
                       value={montoRecibidoAbono}

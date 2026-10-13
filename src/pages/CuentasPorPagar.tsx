@@ -525,6 +525,7 @@ export function CuentasPorPagar() {
                       <Input
                         id="montoAbono"
                         type="number"
+                      className="sin-flechas"
                         min="1"
                         step="1"
                         value={montoAbono}

@@ -69,8 +69,17 @@ function App() {
                     <Route path="/clientes" element={<Clientes />} />
                     <Route path="/proveedores" element={<Proveedores />} />
                     <Route path="/proveedores/cuentas-por-pagar" element={<CuentasPorPagar />} />
-                    <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
-                    <Route path="/configuracion" element={<Configuracion />} />
+                    {/* Reportes y Configuración son solo del administrador. */}
+                    <Route
+                      element={
+                        <RutaProtegida rolesPermitidos={['Admin']}>
+                          <Outlet />
+                        </RutaProtegida>
+                      }
+                    >
+                      <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
+                      <Route path="/configuracion" element={<Configuracion />} />
+                    </Route>
                   </Route>
                 </Route>
               </Routes>

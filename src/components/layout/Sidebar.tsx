@@ -36,6 +36,8 @@ interface ModuloNav {
   roles?: RolUsuario[];
 }
 
+const SOLO_ADMIN: RolUsuario[] = ['Admin'];
+
 const modulos: ModuloNav[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard },
   {
@@ -69,8 +71,8 @@ const modulos: ModuloNav[] = [
       { label: 'Cuentas por pagar', to: '/proveedores/cuentas-por-pagar' },
     ],
   },
-  { label: 'Reportes', to: '/reportes', icon: BarChart3 },
-  { label: 'Configuración', to: '/configuracion', icon: Settings },
+  { label: 'Reportes', to: '/reportes', icon: BarChart3, roles: SOLO_ADMIN },
+  { label: 'Configuración', to: '/configuracion', icon: Settings, roles: SOLO_ADMIN },
 ];
 
 function Marca({ compact = false }: { compact?: boolean }) {
