@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { Loader2, Lock, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBorradorVenta } from '@/context/BorradorVentaContext';
 import { useAuth } from '@/context/AuthContext';
+import { useCaja } from '@/context/CajaContext';
 import { ApiError } from '@/services/api';
 import { loginEmpleado } from '@/services/authService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
@@ -142,6 +144,11 @@ const estadoInicialComprador = {
 
 export function Ventas() {
   const { token, usuario } = useAuth();
+  const { hayTurnoAbierto, cargando: cargandoCaja } = useCaja();
+  // Sin turno de caja abierto no se puede recibir efectivo (el backend también lo rechaza):
+  // tarjeta y transferencia siguen disponibles.
+  const sinCajaAbierta = !cargandoCaja && !hayTurnoAbierto;
+  const metodoRequiereCaja = (metodo: MetodoPagoVenta | '') => metodo === 'Efectivo' || metodo === 'Mixto';
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [cargandoProductos, setCargandoProductos] = useState(true);
@@ -573,6 +580,10 @@ export function Ventas() {
     }
     if (!metodoPago) {
       setErrorFormulario('Selecciona un método de pago.');
+      return;
+    }
+    if (sinCajaAbierta && metodoRequiereCaja(metodoPago)) {
+      setErrorFormulario('Para cobrar en efectivo primero abre tu caja, o elige tarjeta o transferencia.');
       return;
     }
     if (metodoPago === 'Efectivo' && (!montoRecibidoValido || montoRecibidoNumero < total)) {
@@ -1131,12 +1142,25 @@ export function Ventas() {
                 </SelectTrigger>
                 <SelectContent>
                   {metodosPagoVenta.map((metodo) => (
-                    <SelectItem key={metodo.valor} value={metodo.valor}>
+                    <SelectItem
+                      key={metodo.valor}
+                      value={metodo.valor}
+                      disabled={sinCajaAbierta && metodoRequiereCaja(metodo.valor)}
+                    >
                       {metodo.etiqueta}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {sinCajaAbierta && (
+                <p className="text-xs text-text-muted">
+                  Para cobrar en efectivo primero{' '}
+                  <Link to="/caja" className="font-medium text-gold-hover underline">
+                    abre tu caja
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
 
             {metodoPago === 'Efectivo' && (

@@ -4,6 +4,7 @@ import { LogoProvider } from './context/LogoContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { StockRealtimeProvider } from './context/StockRealtimeContext';
 import { BorradorVentaProvider } from './context/BorradorVentaContext';
+import { CajaProvider } from './context/CajaContext';
 import { RutaProtegida } from './components/RutaProtegida';
 import { AppLayout } from './components/layout/AppLayout';
 import { Login } from './pages/Login';
@@ -21,6 +22,7 @@ import { Pedidos } from './pages/Pedidos';
 import { Clientes } from './pages/Clientes';
 import { Proveedores } from './pages/Proveedores';
 import { CuentasPorPagar } from './pages/CuentasPorPagar';
+import { Caja } from './pages/Caja';
 import { Toaster } from '@/components/ui/sonner';
 import { ROLES_OPERATIVOS } from './utils/permisos';
 
@@ -32,6 +34,7 @@ function App() {
           <AuthProvider>
             <StockRealtimeProvider>
               <BorradorVentaProvider>
+              <CajaProvider>
               <Toaster position="top-right" richColors />
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -65,6 +68,7 @@ function App() {
                     <Route path="/ventas" element={<Ventas />} />
                     <Route path="/ventas/fiado" element={<FiadoPage />} />
                     <Route path="/ventas/historial" element={<HistorialVentas />} />
+                    <Route path="/caja" element={<Caja />} />
                     <Route path="/pedidos" element={<Pedidos />} />
                     <Route path="/clientes" element={<Clientes />} />
                     <Route path="/proveedores" element={<Proveedores />} />
@@ -83,6 +87,7 @@ function App() {
                   </Route>
                 </Route>
               </Routes>
+              </CajaProvider>
               </BorradorVentaProvider>
             </StockRealtimeProvider>
           </AuthProvider>

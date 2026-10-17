@@ -9,6 +9,7 @@ import { montoEnLetras } from '@/utils/numeroALetras';
 import type { FacturaDocumento } from '@/types/facturaDocumento';
 import type { VentaResponse } from '@/types/ventas';
 import { parseInstante } from '../utils/fechas';
+import type { TurnoCaja } from '@/types/caja';
 
 const ESC = '\x1B';
 const GS = '\x1D';
@@ -350,4 +351,83 @@ export async function abrirCajon(nombreImpresora: string): Promise<void> {
   await asegurarConexion();
   const config = qz.configs.create(nombreImpresora);
   await qz.print(config, [ABRIR_CAJON]);
+}
+
+function construirTiqueteCierreCaja(turno: TurnoCaja, nombreEmpresa: string): string[] {
+  const lineas: string[] = [];
+  const texto = (t: string) => lineas.push(t);
+  const centrados = (t: string) =>
+    envolverTexto(t).forEach((r) => texto(centrarEn(r, ANCHO_TICKET).trimEnd() + '\n'));
+  const separador = () => texto('-'.repeat(ANCHO_TICKET) + '\n');
+  const monto = (etiqueta: string, valor: number) => texto(filaMonto(etiqueta, valor) + '\n');
+  const totales = turno.totales;
+
+  texto(ESC + '@');
+  texto(ESC + 'a' + '\x00');
+  texto(NEGRITA);
+  centrados(nombreEmpresa.toUpperCase());
+  texto(GRANDE);
+  centrados('CIERRE DE CAJA');
+  texto(NORMAL);
+
+  separador();
+  const apertura = fechaHoraTiquete(turno.fechaApertura);
+  texto(`Turno : ${turno.empleadoNombre}\n`);
+  texto(`Abre  : ${apertura.fecha} ${apertura.hora}\n`);
+  if (turno.fechaCierre) {
+    const cierre = fechaHoraTiquete(turno.fechaCierre);
+    texto(`Cierra: ${cierre.fecha} ${cierre.hora}\n`);
+  }
+  if (turno.cerradoPorNombre && turno.cerradoPorNombre !== turno.empleadoNombre) {
+    texto(`Cerrado por: ${turno.cerradoPorNombre}\n`);
+  }
+  separador();
+
+  monto('Base inicial', turno.baseInicial);
+  if (totales) {
+    monto('Ventas efectivo', totales.ventasEfectivo);
+    monto('Abonos de fiado', totales.abonosFiadoEfectivo);
+    monto('Pagos proveedores', -totales.pagosProveedorEfectivo);
+  }
+  separador();
+
+  texto(NEGRITA);
+  monto('ESPERADO', turno.efectivoEsperado ?? 0);
+  monto('CONTADO', turno.efectivoContado ?? 0);
+  const diferencia = turno.diferencia ?? 0;
+  monto(diferencia === 0 ? 'CUADRA' : diferencia < 0 ? 'FALTANTE' : 'SOBRANTE', diferencia);
+  texto(NORMAL);
+
+  if (turno.notaCierre) {
+    envolverTexto('Nota: ' + turno.notaCierre).forEach((r) => texto(r + '\n'));
+  }
+
+  if (totales) {
+    separador();
+    centrados('PARA CONCILIAR');
+    monto('Transferencias', totales.transferencias);
+    monto('Tarjeta', totales.tarjeta);
+  }
+
+  separador();
+  texto('\n\nFirma: ' + '_'.repeat(ANCHO_TICKET - 7) + '\n\n');
+  texto(NEGRITA);
+  centrados(NOMBRE_SISTEMA);
+  texto(NORMAL);
+  texto('\n');
+  texto(GS + 'V' + String.fromCharCode(66) + String.fromCharCode(24));
+
+  // Sin tildes ni caracteres fuera de ASCII (nombres de empleados, "Julián"): ver paraImpresora.
+  return lineas.map((l) => paraImpresora(l));
+}
+
+/** Imprime el ticket de cierre de caja (80 mm) de un turno ya cerrado. */
+export async function imprimirCierreCaja(
+  turno: TurnoCaja,
+  nombreEmpresa: string | null,
+  nombreImpresora: string
+): Promise<void> {
+  await asegurarConexion();
+  const config = qz.configs.create(nombreImpresora);
+  await qz.print(config, construirTiqueteCierreCaja(turno, nombreEmpresa ?? NOMBRE_EMPRESA_POR_DEFECTO));
 }

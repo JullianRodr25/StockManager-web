@@ -27,6 +27,8 @@ export interface ConfiguracionGeneral {
   resolucionDianVigenciaMeses: number | null;
   textoLegalFactura: string | null;
   politicaCambiosFactura: string | null;
+  /** Cierre de caja a ciegas: el empleado cuenta sin ver el efectivo esperado. */
+  conteoCiegoCaja: boolean;
 }
 
 // El backend actualiza la fila de Configuracion completa en un solo PUT (no hay PATCH parcial),
@@ -55,4 +57,5 @@ export interface ActualizarConfiguracionRequest {
   resolucionDianVigenciaMeses: number | null;
   textoLegalFactura: string | null;
   politicaCambiosFactura: string | null;
+  conteoCiegoCaja?: boolean;
 }

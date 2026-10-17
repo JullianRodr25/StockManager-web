@@ -9,6 +9,7 @@ import { ApiError } from '@/services/api';
 import { actualizarConfiguracion, aRequest, obtenerConfiguracion } from '@/services/configuracionService';
 import type { ConfiguracionGeneral } from '@/types/configuracion';
 import { CategoriasDialog } from '@/components/CategoriasDialog';
+import { ConteoCiegoCajaCard } from '@/components/ConteoCiegoCajaCard';
 import { DatosFacturacionCard } from '@/components/DatosFacturacionCard';
 import { NavegacionConfiguracion } from '@/components/NavegacionConfiguracion';
 import { NuevoUsuarioCard } from '@/components/NuevoUsuarioCard';
@@ -557,6 +558,12 @@ export function Configuracion() {
                 )}
               </CardContent>
             </Card>
+
+            <ConteoCiegoCajaCard
+              configuracion={configuracion}
+              esAdmin={esAdmin}
+              onActualizada={setConfiguracion}
+            />
             </>
           )}
 
