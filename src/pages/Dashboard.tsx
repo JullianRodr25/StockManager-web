@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { obtenerResumenDashboard } from '@/services/dashboardService';
 import type { DashboardResumen } from '@/types/dashboard';
+import { parseInstante } from '@/utils/fechas';
 
 interface Kpi {
   label: string;
@@ -77,7 +78,7 @@ function construirKpisSecundarios(resumen: DashboardResumen): Kpi[] {
 }
 
 function formatearFechaActividad(fechaIso: string): string {
-  return new Date(fechaIso).toLocaleString('es-CO', {
+  return parseInstante(fechaIso).toLocaleString('es-CO', {
     timeZone: 'America/Bogota',
     dateStyle: 'short',
     timeStyle: 'short',

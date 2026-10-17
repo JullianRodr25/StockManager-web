@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TarjetaCuentaAbierta } from '@/components/TarjetaCuentaAbierta';
 import type { VentaResumenResponse } from '@/types/ventas';
+import { parseInstante } from '@/utils/fechas';
 
 interface ListaCuentasAbiertasProps {
   cuentas: VentaResumenResponse[];
@@ -33,7 +34,7 @@ export function ListaCuentasAbiertas({
       ? cuentas.filter((cuenta) => nombreDeCuenta(cuenta).toLowerCase().includes(termino))
       : cuentas;
     return [...filtradas].sort((a, b) => {
-      const diferencia = new Date(a.fecha).getTime() - new Date(b.fecha).getTime();
+      const diferencia = parseInstante(a.fecha).getTime() - parseInstante(b.fecha).getTime();
       return antiguasPrimero ? diferencia : -diferencia;
     });
   }, [cuentas, filtro, antiguasPrimero, nombreDeCuenta]);

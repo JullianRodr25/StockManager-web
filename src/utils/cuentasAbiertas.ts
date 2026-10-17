@@ -1,4 +1,5 @@
 import type { VentaResumenResponse } from '@/types/ventas';
+import { parseInstante } from './fechas';
 
 /** Días sin cerrarse a partir de los cuales una cuenta abierta se considera vencida. */
 export const DIAS_CUENTA_VENCIDA = 15;
@@ -6,7 +7,7 @@ export const DIAS_CUENTA_VENCIDA = 15;
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
 export function diasAbierta(fechaApertura: string, ahora: Date = new Date()): number {
-  const dias = Math.floor((ahora.getTime() - new Date(fechaApertura).getTime()) / MS_POR_DIA);
+  const dias = Math.floor((ahora.getTime() - parseInstante(fechaApertura).getTime()) / MS_POR_DIA);
   return Math.max(dias, 0);
 }
 

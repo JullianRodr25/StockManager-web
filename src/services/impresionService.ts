@@ -8,6 +8,7 @@ import qz from 'qz-tray';
 import { montoEnLetras } from '@/utils/numeroALetras';
 import type { FacturaDocumento } from '@/types/facturaDocumento';
 import type { VentaResponse } from '@/types/ventas';
+import { parseInstante } from '../utils/fechas';
 
 const ESC = '\x1B';
 const GS = '\x1D';
@@ -144,7 +145,7 @@ function filaMonto(etiqueta: string, valor: number): string {
 }
 
 function fechaHoraTiquete(fechaIso: string): { fecha: string; hora: string } {
-  const fecha = new Date(fechaIso);
+  const fecha = parseInstante(fechaIso);
   const zona = 'America/Bogota';
   return {
     fecha: fecha.toLocaleDateString('es-CO', { timeZone: zona, day: '2-digit', month: '2-digit', year: 'numeric' }),

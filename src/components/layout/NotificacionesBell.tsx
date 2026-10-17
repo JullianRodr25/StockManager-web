@@ -13,6 +13,7 @@ import {
   obtenerNotificaciones,
 } from '@/services/notificacionService';
 import type { NotificacionInterna } from '@/types/notificaciones';
+import { parseInstante } from '@/utils/fechas';
 
 // Cada cuánto se refresca el conteo del badge en segundo plano (aunque la campana esté
 // cerrada), para que un empleado que deja la pestaña abierta vea alertas nuevas sin recargar.
@@ -39,7 +40,7 @@ function rutaParaNotificacion(notificacion: NotificacionInterna): string {
 }
 
 function formatearFechaRelativa(fechaIso: string): string {
-  const fecha = new Date(fechaIso);
+  const fecha = parseInstante(fechaIso);
   const segundos = Math.max(0, Math.floor((Date.now() - fecha.getTime()) / 1000));
 
   if (segundos < 60) return 'hace un momento';

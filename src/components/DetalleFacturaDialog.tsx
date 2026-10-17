@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { parseInstante } from '@/utils/fechas';
 
 export const formatoMoneda = new Intl.NumberFormat('es-CO', {
   style: 'currency',
@@ -26,7 +27,7 @@ export const formatoMoneda = new Intl.NumberFormat('es-CO', {
 });
 
 export function formatoFecha(fecha: string): string {
-  return new Date(fecha).toLocaleString('es-CO', {
+  return parseInstante(fecha).toLocaleString('es-CO', {
     timeZone: 'America/Bogota',
     dateStyle: 'short',
     timeStyle: 'short',
