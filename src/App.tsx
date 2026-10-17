@@ -12,6 +12,7 @@ import { RestablecerContrasena } from './pages/RestablecerContrasena';
 import { Dashboard } from './pages/Dashboard';
 import { Inventario } from './pages/Inventario';
 import { EtiquetasPendientes } from './pages/EtiquetasPendientes';
+import { Reportes } from './pages/Reportes';
 import { Configuracion } from './pages/Configuracion';
 import { Ventas } from './pages/Ventas';
 import { FiadoPage } from './pages/FiadoPage';
@@ -20,7 +21,6 @@ import { Pedidos } from './pages/Pedidos';
 import { Clientes } from './pages/Clientes';
 import { Proveedores } from './pages/Proveedores';
 import { CuentasPorPagar } from './pages/CuentasPorPagar';
-import { PaginaProximamente } from './pages/PaginaProximamente';
 import { Toaster } from '@/components/ui/sonner';
 import { ROLES_OPERATIVOS } from './utils/permisos';
 
@@ -77,7 +77,7 @@ function App() {
                         </RutaProtegida>
                       }
                     >
-                      <Route path="/reportes" element={<PaginaProximamente titulo="Reportes" />} />
+                      <Route path="/reportes" element={<Reportes />} />
                       <Route path="/configuracion" element={<Configuracion />} />
                     </Route>
                   </Route>
