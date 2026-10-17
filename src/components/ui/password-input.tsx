@@ -30,7 +30,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           disabled={disabled}
           aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
           aria-pressed={visible}
-          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-text-muted transition-colors hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-text-muted transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Icono className="h-4 w-4" aria-hidden="true" />
         </button>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
+import { FondoAurora } from '@/components/layout/FondoAurora';
 
 export function RestablecerContrasena() {
   const [searchParams] = useSearchParams();
@@ -47,14 +48,15 @@ export function RestablecerContrasena() {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-background px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md items-center">
-          <Card className="w-full border-border bg-card/95 shadow-xl">
+      <div className="relative min-h-screen overflow-hidden bg-background px-4 py-6 sm:px-6 sm:py-8">
+      <FondoAurora />
+        <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] max-w-md items-center">
+          <Card className="w-full border-0">
             <CardContent className="space-y-4 pt-6 text-center">
               <p className="text-sm text-text-muted">
                 Este enlace no es válido. Solicitá uno nuevo desde la pantalla de inicio de sesión.
               </p>
-              <Link to="/olvide-contrasena" className="block text-sm text-gold hover:underline">
+              <Link to="/olvide-contrasena" className="block text-sm text-gold-text hover:underline">
                 Solicitar un nuevo enlace
               </Link>
             </CardContent>
@@ -65,18 +67,19 @@ export function RestablecerContrasena() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md items-center">
-        <Card className="w-full border-border bg-card/95 shadow-xl">
+    <div className="relative min-h-screen overflow-hidden bg-background px-4 py-6 sm:px-6 sm:py-8">
+      <FondoAurora />
+      <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] max-w-md items-center">
+        <Card className="w-full border-0">
           <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl text-navy">Restablecer contraseña</CardTitle>
+            <CardTitle className="text-2xl text-foreground">Restablecer contraseña</CardTitle>
             <CardDescription>Elegí una nueva contraseña para tu cuenta.</CardDescription>
           </CardHeader>
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="nuevaPassword" className="text-navy">
+                <Label htmlFor="nuevaPassword" className="text-foreground">
                   Nueva contraseña
                 </Label>
                 <PasswordInput
@@ -89,7 +92,7 @@ export function RestablecerContrasena() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmarPassword" className="text-navy">
+                <Label htmlFor="confirmarPassword" className="text-foreground">
                   Confirmar contraseña
                 </Label>
                 <PasswordInput
@@ -102,12 +105,12 @@ export function RestablecerContrasena() {
               </div>
 
               {error && (
-                <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                <div className="rounded-md border border-destructive/40 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
                   {error}
                 </div>
               )}
 
-              <Button type="submit" variant="gold" className="w-full font-heading text-sm uppercase tracking-wide" disabled={enviando}>
+              <Button type="submit" variant="gold" className="h-11 w-full font-heading text-sm font-extrabold uppercase tracking-wide" disabled={enviando}>
                 {enviando ? 'Guardando...' : 'Guardar nueva contraseña'}
               </Button>
             </form>

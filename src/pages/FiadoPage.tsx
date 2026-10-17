@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
 import { ArrowLeft, Ban, Loader2, Search, Trash2, UserCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
@@ -24,6 +23,7 @@ import type { AbonoResponse, DetalleVentaResponse, MetodoPago, VentaResponse, Ve
 import { BuscadorProductos } from '@/components/BuscadorProductos';
 import { ListaCuentasAbiertas } from '@/components/ListaCuentasAbiertas';
 import { ResumenCuentasAbiertas } from '@/components/ResumenCuentasAbiertas';
+import { RegistrarAbonoDialog } from '@/components/RegistrarAbonoDialog';
 import { DetalleFacturaDialog, formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
 import {
   AlertDialog,
@@ -38,25 +38,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const TAMANO_PAGINA_PRODUCTOS = 500;
 const TAMANO_PAGINA_CUENTAS_ABIERTAS = 200;
 const DEBOUNCE_BUSQUEDA_CLIENTE_MS = 300;
-
-const metodosPago: { valor: MetodoPago; etiqueta: string }[] = [
-  { valor: 'Efectivo', etiqueta: 'Efectivo' },
-  { valor: 'Tarjeta', etiqueta: 'Tarjeta' },
-  { valor: 'Transferencia', etiqueta: 'Transferencia' },
-];
 
 function nombreCuenta(venta: { nombreComprador: string | null }): string {
   return venta.nombreComprador ?? 'Cliente sin nombre registrado';
@@ -96,13 +82,7 @@ export function FiadoPage() {
 
   const [abonos, setAbonos] = useState<AbonoResponse[]>([]);
   const [cargandoAbonos, setCargandoAbonos] = useState(false);
-  const [montoAbono, setMontoAbono] = useState('');
-  const [metodoPagoAbono, setMetodoPagoAbono] = useState<MetodoPago | ''>('');
-  // Monto recibido/cambio del abono en efectivo: es solo apoyo visual para el cajero,
-  // no viaja al backend (RegistrarAbonoRequest no cambia). El "monto" que se registra
-  // como abono siempre queda topado al saldo pendiente, así que el vuelto nunca se
-  // guarda como parte de la cuenta, solo se muestra en pantalla al momento de cobrar.
-  const [montoRecibidoAbono, setMontoRecibidoAbono] = useState('');
+  const [abonoAbierto, setAbonoAbierto] = useState(false);
   const [registrandoAbono, setRegistrandoAbono] = useState(false);
   const [errorAbono, setErrorAbono] = useState<string | null>(null);
 
@@ -306,9 +286,7 @@ export function FiadoPage() {
     setEdicionesCantidad({});
     setLineaAEliminar(null);
     setAbonos([]);
-    setMontoAbono('');
-    setMetodoPagoAbono('');
-    setMontoRecibidoAbono('');
+    setAbonoAbierto(false);
     setErrorAbono(null);
   }
 
@@ -398,38 +376,13 @@ export function FiadoPage() {
   const totalAbonado = abonos.reduce((acumulado, abono) => acumulado + abono.monto, 0);
   const saldoPendiente = cuentaAbierta ? Math.max(cuentaAbierta.total - totalAbonado, 0) : 0;
 
-  function handlePagarSaldoCompleto() {
-    setMontoAbono(saldoPendiente > 0 ? String(Math.round(saldoPendiente)) : '0');
-  }
-
-  const montoAbonoNumero = Number(montoAbono);
-  const montoRecibidoAbonoNumero = Number(montoRecibidoAbono);
-  const montoRecibidoAbonoValido =
-    montoRecibidoAbono.trim() !== '' && Number.isFinite(montoRecibidoAbonoNumero);
-  const cambioAbono = montoRecibidoAbonoValido ? montoRecibidoAbonoNumero - montoAbonoNumero : null;
-
-  async function handleRegistrarAbono(event: FormEvent) {
-    event.preventDefault();
+  async function handleRegistrarAbono(monto: number, metodoPago: MetodoPago) {
     if (!cuentaAbierta || registrandoAbono) return;
 
     setErrorAbono(null);
-    const monto = Number(montoAbono);
-    if (!Number.isFinite(monto) || monto <= 0) {
-      setErrorAbono('Ingresa un monto válido.');
-      return;
-    }
-    if (!metodoPagoAbono) {
-      setErrorAbono('Selecciona un método de pago.');
-      return;
-    }
-    if (metodoPagoAbono === 'Efectivo' && (!montoRecibidoAbonoValido || montoRecibidoAbonoNumero < monto)) {
-      setErrorAbono('Ingresa el monto recibido en efectivo; debe ser al menos el monto del abono.');
-      return;
-    }
-
     setRegistrandoAbono(true);
     try {
-      const venta = await registrarAbono(cuentaAbierta.id, { monto, metodoPago: metodoPagoAbono }, token);
+      const venta = await registrarAbono(cuentaAbierta.id, { monto, metodoPago }, token);
 
       if (venta.estado.trim().toLowerCase() === 'pagada') {
         toast.success('Cuenta abierta pagada por completo', {
@@ -445,9 +398,7 @@ export function FiadoPage() {
 
         setAbonos(abonosActualizados);
         setCuentaAbierta(venta);
-        setMontoAbono('');
-        setMetodoPagoAbono('');
-        setMontoRecibidoAbono('');
+        setAbonoAbierto(false);
         toast.success('Abono registrado', {
           description: `Saldo pendiente: ${formatoMoneda.format(saldoActualizado)}`,
         });
@@ -721,87 +672,18 @@ export function FiadoPage() {
                 <span className="text-lg font-semibold text-navy">{formatoMoneda.format(saldoPendiente)}</span>
               </div>
 
-              <form onSubmit={handleRegistrarAbono} className="space-y-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="montoAbono">Monto</Label>
-                    <Input
-                      id="montoAbono"
-                      type="number"
-                      className="sin-flechas"
-                      min="1"
-                      step="1"
-                      value={montoAbono}
-                      onChange={(e) => setMontoAbono(e.target.value)}
-                      disabled={registrandoAbono}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="metodoPagoAbono">Método de pago</Label>
-                    <Select value={metodoPagoAbono} onValueChange={(valor) => setMetodoPagoAbono(valor as MetodoPago)}>
-                      <SelectTrigger id="metodoPagoAbono" disabled={registrandoAbono}>
-                        <SelectValue placeholder="Selecciona un método" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {metodosPago.map((metodo) => (
-                          <SelectItem key={metodo.valor} value={metodo.valor}>
-                            {metodo.etiqueta}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {metodoPagoAbono === 'Efectivo' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="montoRecibidoAbono">Monto recibido</Label>
-                    <Input
-                      id="montoRecibidoAbono"
-                      type="number"
-                      className="sin-flechas"
-                      min="0"
-                      step="1"
-                      value={montoRecibidoAbono}
-                      onChange={(e) => setMontoRecibidoAbono(e.target.value)}
-                      disabled={registrandoAbono}
-                    />
-                    {montoRecibidoAbonoValido && (
-                      <p
-                        className={
-                          'text-sm font-medium ' +
-                          (montoRecibidoAbonoNumero < montoAbonoNumero ? 'text-error-text' : 'text-navy')
-                        }
-                      >
-                        {montoRecibidoAbonoNumero < montoAbonoNumero
-                          ? `Falta ${formatoMoneda.format(montoAbonoNumero - montoRecibidoAbonoNumero)}`
-                          : `Cambio: ${formatoMoneda.format(cambioAbono ?? 0)}`}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {errorAbono && (
-                  <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                    {errorAbono}
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handlePagarSaldoCompleto}
-                    disabled={registrandoAbono || saldoPendiente <= 0}
-                  >
-                    Pagar saldo completo
-                  </Button>
-                  <Button type="submit" variant="gold" className="sm:flex-1" disabled={registrandoAbono}>
-                    {registrandoAbono && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
-                    Registrar abono
-                  </Button>
-                </div>
-              </form>
+              <Button
+                type="button"
+                variant="gold"
+                className="w-full"
+                onClick={() => {
+                  setErrorAbono(null);
+                  setAbonoAbierto(true);
+                }}
+                disabled={saldoPendiente <= 0}
+              >
+                Registrar abono
+              </Button>
 
               <div className="space-y-2 border-t border-border pt-3">
                 <p className="text-sm font-medium text-navy">Historial de abonos</p>
@@ -841,6 +723,18 @@ export function FiadoPage() {
           </Card>
         </>
       )}
+
+      <RegistrarAbonoDialog
+        abierto={abonoAbierto}
+        onAbiertoChange={setAbonoAbierto}
+        titulo="Registrar abono"
+        descripcion={cuentaAbierta ? `Cuenta de ${nombreCuenta(cuentaAbierta)}` : ''}
+        saldoPendiente={saldoPendiente}
+        pedirEfectivoRecibido
+        enviando={registrandoAbono}
+        error={errorAbono}
+        onConfirmar={handleRegistrarAbono}
+      />
 
       <AlertDialog open={lineaAEliminar !== null} onOpenChange={(open) => !open && setLineaAEliminar(null)}>
         <AlertDialogContent>

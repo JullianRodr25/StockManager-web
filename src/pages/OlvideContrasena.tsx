@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FondoAurora } from '@/components/layout/FondoAurora';
 
 export function OlvideContrasena() {
   const [email, setEmail] = useState('');
@@ -32,11 +33,12 @@ export function OlvideContrasena() {
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md items-center">
-        <Card className="w-full border-border bg-card/95 shadow-xl">
+    <div className="relative min-h-screen overflow-hidden bg-background px-4 py-6 sm:px-6 sm:py-8">
+      <FondoAurora />
+      <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] max-w-md items-center">
+        <Card className="w-full border-0">
           <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl text-navy">¿Olvidaste tu contraseña?</CardTitle>
+            <CardTitle className="text-2xl text-foreground">¿Olvidaste tu contraseña?</CardTitle>
             <CardDescription>
               Escribí tu correo y, si está registrado, te enviaremos un enlace para restablecerla.
             </CardDescription>
@@ -45,17 +47,17 @@ export function OlvideContrasena() {
           <CardContent>
             {mensaje ? (
               <div className="space-y-4">
-                <div className="rounded-md border border-green/30 bg-green/10 px-3 py-2 text-sm text-navy" role="status">
+                <div className="rounded-md border border-green/30 bg-green/10 px-3 py-2 text-sm text-foreground" role="status">
                   {mensaje}
                 </div>
-                <Link to="/login" className="block text-center text-sm text-gold hover:underline">
+                <Link to="/login" className="block text-center text-sm text-gold-text hover:underline">
                   Volver a iniciar sesión
                 </Link>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-navy">
+                  <Label htmlFor="email" className="text-foreground">
                     Correo
                   </Label>
                   <Input
@@ -70,12 +72,12 @@ export function OlvideContrasena() {
                 </div>
 
                 {error && (
-                  <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                  <div className="rounded-md border border-destructive/40 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
                     {error}
                   </div>
                 )}
 
-                <Button type="submit" variant="gold" className="w-full font-heading text-sm uppercase tracking-wide" disabled={enviando}>
+                <Button type="submit" variant="gold" className="h-11 w-full font-heading text-sm font-extrabold uppercase tracking-wide" disabled={enviando}>
                   {enviando ? 'Enviando...' : 'Enviar enlace'}
                 </Button>
 

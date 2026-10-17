@@ -20,12 +20,32 @@ const TITULOS_POR_RUTA: Record<string, string> = {
   '/inventario': 'Inventario',
   '/inventario/etiquetas': 'Etiquetas pendientes',
   '/ventas': 'Ventas',
+  '/ventas/fiado': 'Cuentas abiertas',
+  '/ventas/historial': 'Historial de ventas',
+  '/caja': 'Caja',
   '/pedidos': 'Pedidos',
   '/clientes': 'Clientes',
   '/proveedores': 'Proveedores',
+  '/proveedores/cuentas-por-pagar': 'Cuentas por pagar',
   '/reportes': 'Reportes',
   '/configuracion': 'Configuración',
 };
+
+// Texto pequeño en mayúsculas sobre el título (sección a la que pertenece la pantalla).
+const SECCION_POR_PREFIJO: Array<[string, string]> = [
+  ['/inventario', 'Inventario'],
+  ['/ventas', 'Ventas'],
+  ['/caja', 'Operación'],
+  ['/pedidos', 'Operación'],
+  ['/clientes', 'Operación'],
+  ['/proveedores', 'Proveedores'],
+  ['/reportes', 'Administración'],
+  ['/configuracion', 'Administración'],
+];
+
+function seccionDeRuta(pathname: string): string {
+  return SECCION_POR_PREFIJO.find(([prefijo]) => pathname.startsWith(prefijo))?.[1] ?? 'Principal';
+}
 
 function obtenerIniciales(nombre: string | undefined): string {
   if (!nombre) return '??';
@@ -43,15 +63,19 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const titulo = TITULOS_POR_RUTA[location.pathname] ?? 'StockManager';
+  const seccion = seccionDeRuta(location.pathname);
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--glass-border)] bg-[var(--sidebar-bg)] px-4 backdrop-blur-xl sm:px-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
-          <Menu className="h-5 w-5 text-navy" />
+          <Menu className="h-5 w-5 text-foreground" />
           <span className="sr-only">Abrir menú</span>
         </Button>
-        <h1 className="font-heading text-lg font-semibold text-navy">{titulo}</h1>
+        <div className="flex flex-col">
+          <span className="etiqueta-mono text-[10px] text-text-muted">{seccion}</span>
+          <h1 className="font-heading text-lg font-extrabold leading-tight text-foreground">{titulo}</h1>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -61,7 +85,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           onClick={toggleTheme}
           aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
         >
-          {theme === 'dark' ? <Sun className="h-5 w-5 text-navy" /> : <Moon className="h-5 w-5 text-navy" />}
+          {theme === 'dark' ? <Sun className="h-5 w-5 text-foreground" /> : <Moon className="h-5 w-5 text-foreground" />}
         </Button>
 
         {/* Las notificaciones internas son del personal operativo; el rol de consulta no las recibe. */}
@@ -78,7 +102,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-semibold text-navy">{usuario?.nombre}</p>
+                <p className="text-sm font-semibold text-foreground">{usuario?.nombre}</p>
                 <p className="text-xs text-text-muted">{etiquetaDeRol(usuario?.rol)}</p>
               </div>
             </DropdownMenuLabel>

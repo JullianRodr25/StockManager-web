@@ -15,7 +15,7 @@ interface NavegacionConfiguracionProps {
 }
 
 /**
- * Menú de secciones de Configuración. En escritorio es una columna con título y descripción
+ * Menú de secciones de Configuración (tarjetas seleccionables; el tema Aurora solo cambia su aspecto). En escritorio es una columna con título y descripción
  * corta de cada sección; en pantallas angostas se vuelve una fila deslizable de chips para no
  * ocupar la mitad de la pantalla. Es presentacional: quien lo usa decide qué hay en cada sección.
  */
@@ -34,14 +34,14 @@ export function NavegacionConfiguracion({ secciones, activa, onSeleccionar }: Na
             onClick={() => onSeleccionar(id)}
             aria-current={esActiva ? 'page' : undefined}
             className={cn(
-              'flex shrink-0 items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold',
+              'flex shrink-0 items-center gap-3 rounded-2xl border px-3 py-2 text-left transition-all motion-reduce:transition-none lg:py-3',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               esActiva
-                ? 'border-gold bg-gold/10 text-navy'
-                : 'border-transparent text-text-muted hover:bg-gold/5 hover:text-navy lg:py-3'
+                ? 'vidrio border-primary text-foreground shadow-[0_0_24px_var(--glow)]'
+                : 'border-[var(--glass-border)] bg-foreground/[0.03] text-text-muted hover:border-primary/40 hover:bg-foreground/10 hover:text-foreground'
             )}
           >
-            <Icono className={cn('h-5 w-5 shrink-0', esActiva && 'text-gold')} aria-hidden="true" />
+            <Icono className={cn('h-5 w-5 shrink-0', esActiva && 'text-gold-text')} aria-hidden="true" />
             <span className="min-w-0">
               <span className="block text-sm font-medium">{titulo}</span>
               <span className="hidden text-xs text-text-muted lg:block">{descripcion}</span>

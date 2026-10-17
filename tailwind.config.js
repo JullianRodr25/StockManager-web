@@ -18,6 +18,8 @@ export default {
         background: 'hsl(var(--background) / <alpha-value>)',
         border: 'hsl(var(--border) / <alpha-value>)',
         'text-muted': 'hsl(var(--muted-foreground) / <alpha-value>)',
+        // Dorado para TEXTO sobre fondos de vidrio: más oscuro en claro, luminoso en oscuro.
+        'gold-text': 'hsl(var(--gold-text) / <alpha-value>)',
         'error-text': 'hsl(var(--error-text) / <alpha-value>)',
         'error-bg': 'hsl(var(--error-bg) / <alpha-value>)',
         // Navy FIJO (no se invierte): para superficies de marca que deben
@@ -46,6 +48,7 @@ export default {
       fontFamily: {
         heading: ['Manrope', 'system-ui', 'sans-serif'],
         body: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
     },
   },

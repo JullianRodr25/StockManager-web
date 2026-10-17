@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Ban, Loader2, Plus } from 'lucide-react';
+import { Ban, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { RegistrarAbonoDialog } from '@/components/RegistrarAbonoDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
@@ -52,12 +53,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 const TAMANO_PAGINA = 100;
 const PROVEEDORES_TAMANO_PAGINA = 200;
-
-const metodosPago: { valor: MetodoPago; etiqueta: string }[] = [
-  { valor: 'Efectivo', etiqueta: 'Efectivo' },
-  { valor: 'Tarjeta', etiqueta: 'Tarjeta' },
-  { valor: 'Transferencia', etiqueta: 'Transferencia' },
-];
 
 // "todas" y "vencidas" no son estados del backend: "todas" simplemente no manda el filtro
 // `estado`, y "vencidas" pide las Pendientes y filtra en el cliente por el flag `vencida`
@@ -113,8 +108,7 @@ export function CuentasPorPagar() {
 
   const [cuentaSeleccionada, setCuentaSeleccionada] = useState<CuentaPorPagarResponse | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
-  const [montoAbono, setMontoAbono] = useState('');
-  const [metodoPagoAbono, setMetodoPagoAbono] = useState<MetodoPago | ''>('');
+  const [abonoAbierto, setAbonoAbierto] = useState(false);
   const [registrandoAbono, setRegistrandoAbono] = useState(false);
   const [errorAbono, setErrorAbono] = useState<string | null>(null);
 
@@ -227,8 +221,7 @@ export function CuentasPorPagar() {
 
   async function abrirDetalle(resumen: CuentaPorPagarResumenResponse) {
     setCargandoDetalle(true);
-    setMontoAbono('');
-    setMetodoPagoAbono('');
+    setAbonoAbierto(false);
     setErrorAbono(null);
     setCuentaSeleccionada(null);
     try {
@@ -247,31 +240,19 @@ export function CuentasPorPagar() {
     }
   }
 
-  async function handleRegistrarAbono(e: FormEvent) {
-    e.preventDefault();
-    if (!cuentaSeleccionada) return;
+  async function handleRegistrarAbono(monto: number, metodoPago: MetodoPago) {
+    if (!cuentaSeleccionada || registrandoAbono) return;
 
     setErrorAbono(null);
-    const monto = Number(montoAbono);
-    if (!Number.isFinite(monto) || monto <= 0) {
-      setErrorAbono('Ingresa un monto válido.');
-      return;
-    }
-    if (!metodoPagoAbono) {
-      setErrorAbono('Selecciona un método de pago.');
-      return;
-    }
-
     setRegistrandoAbono(true);
     try {
       const cuentaActualizada = await registrarAbonoCuentaPorPagar(
         cuentaSeleccionada.id,
-        { monto, metodoPago: metodoPagoAbono },
+        { monto, metodoPago },
         token
       );
       setCuentaSeleccionada(cuentaActualizada);
-      setMontoAbono('');
-      setMetodoPagoAbono('');
+      setAbonoAbierto(false);
       if (cuentaActualizada.estado === 'Pagada') {
         toast.success('Cuenta por pagar saldada por completo');
       } else {
@@ -517,45 +498,7 @@ export function CuentasPorPagar() {
               </div>
 
               {cuentaSeleccionada.estado === 'Pendiente' && (
-                <form onSubmit={handleRegistrarAbono} className="space-y-3 border-t border-border pt-4">
-                  <p className="text-sm font-medium text-navy">Registrar abono</p>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="montoAbono">Monto</Label>
-                      <Input
-                        id="montoAbono"
-                        type="number"
-                      className="sin-flechas"
-                        min="1"
-                        step="1"
-                        value={montoAbono}
-                        onChange={(e) => setMontoAbono(e.target.value)}
-                        disabled={registrandoAbono}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="metodoPagoAbono">Método de pago</Label>
-                      <Select value={metodoPagoAbono} onValueChange={(valor) => setMetodoPagoAbono(valor as MetodoPago)}>
-                        <SelectTrigger id="metodoPagoAbono" disabled={registrandoAbono}>
-                          <SelectValue placeholder="Selecciona un método" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {metodosPago.map((metodo) => (
-                            <SelectItem key={metodo.valor} value={metodo.valor}>
-                              {metodo.etiqueta}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {errorAbono && (
-                    <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
-                      {errorAbono}
-                    </div>
-                  )}
-
+                <div className="space-y-3 border-t border-border pt-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <Button
                       type="button"
@@ -572,12 +515,19 @@ export function CuentasPorPagar() {
                       <Ban className="h-4 w-4" />
                       Cancelar cuenta
                     </Button>
-                    <Button type="submit" variant="gold" disabled={registrandoAbono}>
-                      {registrandoAbono && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+                    <Button
+                      type="button"
+                      variant="gold"
+                      onClick={() => {
+                        setErrorAbono(null);
+                        setAbonoAbierto(true);
+                      }}
+                      disabled={registrandoAbono}
+                    >
                       Registrar abono
                     </Button>
                   </div>
-                </form>
+                </div>
               )}
 
               <div className="space-y-2 border-t border-border pt-3">
@@ -613,6 +563,17 @@ export function CuentasPorPagar() {
           )}
         </DialogContent>
       </Dialog>
+
+      <RegistrarAbonoDialog
+        abierto={abonoAbierto}
+        onAbiertoChange={setAbonoAbierto}
+        titulo="Registrar abono"
+        descripcion={cuentaSeleccionada ? `Pago a ${cuentaSeleccionada.proveedorNombre}` : ''}
+        saldoPendiente={cuentaSeleccionada?.saldoPendiente ?? 0}
+        enviando={registrandoAbono}
+        error={errorAbono}
+        onConfirmar={handleRegistrarAbono}
+      />
 
       <AlertDialog open={confirmandoCancelar} onOpenChange={(open) => !cancelando && setConfirmandoCancelar(open)}>
         <AlertDialogContent>

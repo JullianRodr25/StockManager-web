@@ -86,19 +86,22 @@ function Marca({ compact = false }: { compact?: boolean }) {
       <img
         src={logoUrl}
         alt="Logo de la empresa"
-        className="h-9 w-9 shrink-0 rounded-full border-2 border-gold object-cover"
+        className="h-9 w-9 shrink-0 rounded-full border-2 border-primary object-cover shadow-[0_0_20px_var(--glow)]"
       />
-      <span className="font-heading text-sm font-semibold tracking-wide text-white">
-        Ferretería Gold
-      </span>
+      <div className="flex min-w-0 flex-col">
+        <span className="font-heading text-sm font-extrabold tracking-wide text-foreground">Ferretería Gold</span>
+        <span className="etiqueta-mono text-[10px] text-text-muted">Panel admin</span>
+      </div>
     </div>
   );
 }
 
 const navLinkClasses = (isActive: boolean) =>
   cn(
-    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors motion-reduce:transition-none',
-    isActive ? 'bg-gold/10 text-gold' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+    'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors motion-reduce:transition-none',
+    isActive
+      ? 'bg-primary/15 text-gold-text ring-1 ring-primary/30'
+      : 'text-text-muted hover:bg-foreground/5 hover:text-foreground'
   );
 
 // Insignia que avisa que hay una venta a medio hacer (ver BorradorVentaContext), para que quien
@@ -107,7 +110,7 @@ function InsigniaVentaEnCurso({ cantidad }: { cantidad: number }) {
   if (cantidad === 0) return null;
   return (
     <span
-      className="ml-auto rounded-full bg-gold px-2 py-0.5 text-[11px] font-bold leading-none text-brand-navy"
+      className="ml-auto rounded-full boton-oro px-2 py-0.5 text-[11px] font-bold leading-none"
       title="Tienes una venta en curso"
       aria-label={`Venta en curso con ${cantidad} ${cantidad === 1 ? 'producto' : 'productos'}`}
     >
@@ -155,7 +158,7 @@ function SidebarNav() {
               <button
                 type="button"
                 onClick={() => setExpandido((prev) => ({ ...prev, [to]: !abierto }))}
-                className="rounded p-0.5 hover:bg-white/10"
+                className="rounded p-0.5 hover:bg-foreground/10"
                 aria-label={abierto ? `Contraer ${label}` : `Expandir ${label}`}
                 aria-expanded={abierto}
               >
@@ -166,7 +169,7 @@ function SidebarNav() {
             </div>
 
             {abierto && (
-              <div className="ml-4 mt-1 flex flex-col gap-1 border-l border-white/10 pl-4">
+              <div className="ml-4 mt-1 flex flex-col gap-1 border-l border-border pl-4">
                 {subItemsVisibles.map((subItem) => (
                   <NavLink
                     key={subItem.to}
@@ -174,8 +177,8 @@ function SidebarNav() {
                     end
                     className={({ isActive }) =>
                       cn(
-                        'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors motion-reduce:transition-none',
-                        isActive ? 'text-gold' : 'text-slate-400 hover:text-white'
+                        'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors motion-reduce:transition-none',
+                        isActive ? 'text-gold-text' : 'text-text-muted hover:text-foreground'
                       )
                     }
                   >
@@ -202,7 +205,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
   return (
     <>
       {/* Desktop */}
-      <aside className="hidden w-60 shrink-0 flex-col bg-brand-navy md:flex">
+      <aside className="relative hidden w-60 shrink-0 flex-col border-r border-[var(--glass-border)] bg-[var(--sidebar-bg)] backdrop-blur-xl md:flex">
         <Marca />
         <SidebarNav />
       </aside>

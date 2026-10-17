@@ -220,13 +220,13 @@ export function DatosFacturacionCard({
                 <Label htmlFor="textoLegalFactura">Texto legal (letra de cambio / título valor)</Label>
                 <textarea id="textoLegalFactura" rows={3} maxLength={600} value={form.textoLegalFactura}
                   onChange={(e) => cambiar('textoLegalFactura', e.target.value)}
-                  className="flex w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold" />
+                  className="flex w-full rounded-xl border border-input bg-[var(--field-bg)] px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="politicaCambiosFactura">Política de cambios y devoluciones</Label>
                 <textarea id="politicaCambiosFactura" rows={2} maxLength={300} value={form.politicaCambiosFactura}
                   onChange={(e) => cambiar('politicaCambiosFactura', e.target.value)}
-                  className="flex w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold" />
+                  className="flex w-full rounded-xl border border-input bg-[var(--field-bg)] px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20" />
               </div>
             </div>
 
