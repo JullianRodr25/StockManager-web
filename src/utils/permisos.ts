@@ -19,9 +19,18 @@ export function rutaInicialDe(rol: RolUsuario | undefined): string {
   return rol === 'Inventario' ? '/inventario' : '/';
 }
 
-/** Dar de alta productos y sumar stock: Admin e Inventario. Los empleados solo consultan. */
+/** Dar de alta productos y sumar stock: Admin, Empleado e Inventario. */
 export function puedeCrearProductos(rol: RolUsuario | undefined): boolean {
-  return rol === 'Admin' || rol === 'Inventario';
+  return rol === 'Admin' || rol === 'Empleado' || rol === 'Inventario';
+}
+
+/**
+ * Gestionar productos por completo: editar, desactivar/reactivar y ajustar stock sumando o
+ * restando. Admin y Empleado; el encargado de inventario solo crea y suma. Importar, exportar
+ * y etiquetas siguen siendo solo del Admin.
+ */
+export function puedeGestionarProductos(rol: RolUsuario | undefined): boolean {
+  return rol === 'Admin' || rol === 'Empleado';
 }
 
 const ETIQUETAS_ROL: Record<RolUsuario, string> = {
@@ -36,7 +45,7 @@ export function etiquetaDeRol(rol: RolUsuario | undefined): string {
 
 /** Roles que un administrador puede asignar al crear un usuario, con qué puede hacer cada uno. */
 export const ROLES_ASIGNABLES: { valor: RolUsuario; descripcion: string }[] = [
-  { valor: 'Empleado', descripcion: 'Vende y opera el negocio: ventas, pedidos, clientes y proveedores.' },
+  { valor: 'Empleado', descripcion: 'Vende y opera el negocio: ventas, pedidos, clientes y proveedores. También gestiona el inventario: crea, edita, desactiva y ajusta stock.' },
   { valor: 'Inventario', descripcion: 'Consulta el inventario, crea productos nuevos y suma stock. No edita ni resta, no vende ni entra a otros módulos.' },
   { valor: 'Admin', descripcion: 'Acceso completo, incluida la configuración y la edición del inventario.' },
 ];

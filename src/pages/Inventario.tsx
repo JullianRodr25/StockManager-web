@@ -12,7 +12,7 @@ import { actualizarProducto, ajustarStock, buscarProductoPorCodigoBarras, crearP
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { obtenerProveedores } from '@/services/proveedorService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
-import { esOperativo, puedeCrearProductos } from '@/utils/permisos';
+import { esOperativo, puedeCrearProductos, puedeGestionarProductos } from '@/utils/permisos';
 import type {
   ActualizarProductoRequest,
   Categoria,
@@ -113,12 +113,11 @@ function obtenerErroresImportacion(data: unknown): ImportarProductoError[] {
 
 export function Inventario() {
   const { usuario, token } = useAuth();
-  const esAdmin = usuario?.rol === 'Admin';
-  // Rol Inventario: crea productos y solo SUMA stock. Editar, restar stock, Excel, costo y
-  // desactivar/reactivar son del Admin. Es solo comodidad de interfaz: el backend aplica la misma
-  // regla con [Authorize].
+  // Admin y Empleado gestionan el inventario (crear, editar, desactivar/reactivar, sumar y restar
+  // stock). El rol Inventario solo crea y SUMA. Importar/exportar Excel y etiquetas son del Admin.
+  // Es solo comodidad de interfaz: el backend aplica la misma regla con [Authorize].
   const puedeCrear = puedeCrearProductos(usuario?.rol);
-  const puedeEditar = esAdmin;
+  const puedeEditar = puedeGestionarProductos(usuario?.rol);
   // Crear un proveedor desde el formulario exige ser Admin o Empleado en el backend.
   const puedeCrearProveedor = esOperativo(usuario?.rol);
   const columnasTabla = puedeEditar ? 10 : 8;
@@ -268,12 +267,12 @@ export function Inventario() {
 
   const productosFiltrados = useMemo(() => {
     let lista = productos;
-    if (!esAdmin || !mostrarInactivos) {
+    if (!puedeEditar || !mostrarInactivos) {
       lista = lista.filter((producto) => producto.activo);
     }
     // El filtro por nombre lo hace el servidor (sobre todo el inventario, no solo la página).
     return lista;
-  }, [productos, esAdmin, mostrarInactivos]);
+  }, [productos, puedeEditar, mostrarInactivos]);
 
   const agotados = alertas.filter((p) => p.stockActual <= 0).length;
   const stockBajo = alertas.length - agotados;
@@ -780,7 +779,7 @@ export function Inventario() {
               >
                 <Pencil className="h-4 w-4" />
               </Button>
-              {esAdmin && (producto.activo ? (
+              {puedeEditar && (producto.activo ? (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -858,7 +857,7 @@ export function Inventario() {
             </Button>
           )}
 
-          {esAdmin && (
+          {puedeEditar && (
             <label className="flex items-center gap-2 whitespace-nowrap text-sm text-text-muted">
               <Switch checked={mostrarInactivos} onCheckedChange={setMostrarInactivos} />
               Mostrar inactivos
