@@ -516,7 +516,17 @@ export function Inventario() {
       setDialogNuevoAbierto(false);
       setProductoEditando(null);
       const categoriaIdFiltro = categoriaFiltro === 'todas' ? undefined : Number(categoriaFiltro);
-      await cargarProductos(pagina, categoriaIdFiltro);
+      // La lista va ordenada por Id (los nuevos al final): al crear se salta a la última página
+      // para que el producto recién guardado se vea; al editar se queda donde estaba.
+      const paginaAMostrar = productoEditando
+        ? pagina
+        : Math.max(1, Math.ceil((total + 1) / TAMANO_PAGINA));
+      await cargarProductos(paginaAMostrar, categoriaIdFiltro);
+      if (!productoEditando && categoriaIdFiltro !== undefined && categoriaIdFiltro !== categoriaId) {
+        toast.info('El producto se guardó en otra categoría; quita el filtro para verlo.');
+      } else if (!productoEditando && busquedaAplicadaRef.current?.trim()) {
+        toast.info('Hay una búsqueda activa; si no lo ves, bórrala para ver todo el inventario.');
+      }
     } catch (err) {
       const mensaje = err instanceof ApiError ? err.message : 'No se pudo guardar el producto.';
       setErrorFormulario(mensaje);
