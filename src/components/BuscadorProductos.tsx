@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Barcode } from 'lucide-react';
 import { ApiError } from '@/services/api';
-import { buscarProductoPorCodigoBarras } from '@/services/inventarioService';
+import { buscarProductoPorCodigoBarras, obtenerProductos } from '@/services/inventarioService';
 import type { Producto } from '@/types/inventario';
 import { formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,11 @@ import { Input } from '@/components/ui/input';
 
 const MAX_RESULTADOS_BUSQUEDA = 8;
 const MAX_RESULTADOS_SIN_FILTRO = 20;
+const MIN_LETRAS_BUSQUEDA_SERVIDOR = 2;
+const DEBOUNCE_BUSQUEDA_MS = 250;
+// Se piden más de los que se muestran porque el servidor también devuelve inactivos y sin stock,
+// que aquí se descartan.
+const TAMANO_BUSQUEDA_SERVIDOR = 40;
 
 interface BuscadorProductosProps {
   productos: Producto[];
@@ -60,15 +65,58 @@ export function BuscadorProductos({
   }, [bloqueado]);
 
   const termino = terminoBusqueda.trim().toLowerCase();
-  // Un producto sin stock no se puede vender, así que ni se ofrece en el buscador: evita que
-  // el cajero lo seleccione para encontrarse con el error de "sin stock disponible" después.
-  const productosConStock = productos.filter((producto) => producto.stockActual > 0);
-  const coincidencias = termino
-    ? productosConStock.filter((producto) => producto.nombre.toLowerCase().includes(termino))
-    : productosConStock;
-  const resultadosBusqueda = [...coincidencias]
-    .sort((a, b) => a.nombre.localeCompare(b.nombre))
-    .slice(0, termino ? MAX_RESULTADOS_BUSQUEDA : MAX_RESULTADOS_SIN_FILTRO);
+  const buscaEnServidor = termino.length >= MIN_LETRAS_BUSQUEDA_SERVIDOR;
+
+  // La lista que llega por props es solo una carga inicial (los primeros productos del
+  // inventario): no contiene todo el catálogo ni los productos creados después. Por eso, al
+  // escribir se consulta al servidor, que busca por nombre en TODO el inventario.
+  const [resultadosServidor, setResultadosServidor] = useState<Producto[] | null>(null);
+  const [buscandoNombre, setBuscandoNombre] = useState(false);
+
+  useEffect(() => {
+    if (!buscaEnServidor) {
+      setResultadosServidor(null);
+      setBuscandoNombre(false);
+      return;
+    }
+
+    let cancelado = false;
+    setBuscandoNombre(true);
+    const temporizador = setTimeout(async () => {
+      try {
+        const respuesta = await obtenerProductos(1, TAMANO_BUSQUEDA_SERVIDOR, token, undefined, termino);
+        if (!cancelado) setResultadosServidor(respuesta.data);
+      } catch {
+        // Si falla la consulta, se usa el filtrado local de la lista ya cargada.
+        if (!cancelado) setResultadosServidor(null);
+      } finally {
+        if (!cancelado) setBuscandoNombre(false);
+      }
+    }, DEBOUNCE_BUSQUEDA_MS);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(temporizador);
+    };
+  }, [termino, buscaEnServidor, token]);
+
+  // Un producto sin stock (o inactivo) no se puede vender, así que ni se ofrece en el buscador:
+  // evita que el cajero lo seleccione para encontrarse con el error de "sin stock" después.
+  const vendible = (producto: Producto) => producto.activo && producto.stockActual > 0;
+
+  let resultadosBusqueda: Producto[];
+  if (buscaEnServidor && resultadosServidor) {
+    // El servidor ya los ordena (los que empiezan por el texto primero): se respeta ese orden.
+    resultadosBusqueda = resultadosServidor.filter(vendible).slice(0, MAX_RESULTADOS_BUSQUEDA);
+  } else {
+    const locales = productos.filter(vendible);
+    const coincidencias = termino
+      ? locales.filter((producto) => producto.nombre.toLowerCase().includes(termino))
+      : locales;
+    resultadosBusqueda = [...coincidencias]
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+      .slice(0, termino ? MAX_RESULTADOS_BUSQUEDA : MAX_RESULTADOS_SIN_FILTRO);
+  }
 
   // Igual que en el buscador: un producto sin stock no se puede vender, así que no tiene
   // sentido ofrecerlo como acceso directo.
@@ -160,7 +208,9 @@ export function BuscadorProductos({
           <div className="max-h-72 overflow-y-auto rounded-md border border-border">
             {resultadosBusqueda.length === 0 ? (
               <p className="px-3 py-2 text-sm text-text-muted">
-                {terminoBusqueda.trim()
+                {buscandoNombre
+                  ? 'Buscando...'
+                  : terminoBusqueda.trim()
                   ? 'Sin resultados por nombre. Presiona Enter para buscar por código.'
                   : 'No hay productos disponibles.'}
               </p>
