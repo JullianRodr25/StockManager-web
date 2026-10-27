@@ -470,6 +470,15 @@ export function Inventario() {
       formulario.aplicaIva &&
       (formulario.tarifaIva.trim() === '' || Number.isNaN(tarifaIva) || tarifaIva < 0 || tarifaIva > 100);
 
+    // Regla de negocio: no se vende por debajo del costo (igual al costo sí se permite). El
+    // backend también la aplica; esto solo avisa antes de enviar.
+    if (!camposBasicosInvalidos && precio < costo) {
+      setErrorFormulario(
+        `El precio de venta (${formatoMoneda.format(precio)}) no puede ser menor al costo (${formatoMoneda.format(costo)}).`
+      );
+      return;
+    }
+
     if (camposBasicosInvalidos || tarifaIvaInvalida || (!productoEditando && Number.isNaN(stockInicial))) {
       setErrorFormulario(
         'Completa todos los campos obligatorios con valores válidos. Si el producto aplica IVA, la tarifa debe estar entre 0 y 100.'
