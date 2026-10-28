@@ -7,6 +7,7 @@ import type { Producto } from '@/types/inventario';
 import { formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 const MAX_RESULTADOS_BUSQUEDA = 8;
 const MAX_RESULTADOS_SIN_FILTRO = 20;
@@ -46,7 +47,8 @@ export function BuscadorProductos({
   const [buscandoCodigo, setBuscandoCodigo] = useState(false);
   const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null);
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
-  const cierreDropdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Posición resaltada con las flechas del teclado (-1 = ninguna).
+  const [resaltado, setResaltado] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const estabaBloqueadoRef = useRef(false);
 
@@ -113,17 +115,47 @@ export function BuscadorProductos({
     const coincidencias = termino
       ? locales.filter((producto) => producto.nombre.toLowerCase().includes(termino))
       : locales;
+    // Mismo criterio que el servidor (los que empiezan por el texto primero, luego alfabético)
+    // para que la lista no se reordene cuando llegan los resultados del servidor.
+    const empiezaPor = (producto: Producto) => (termino && producto.nombre.toLowerCase().startsWith(termino) ? 0 : 1);
     resultadosBusqueda = [...coincidencias]
-      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+      .sort((a, b) => empiezaPor(a) - empiezaPor(b) || a.nombre.localeCompare(b.nombre, 'es'))
       .slice(0, termino ? MAX_RESULTADOS_BUSQUEDA : MAX_RESULTADOS_SIN_FILTRO);
   }
+  const indiceResaltado = Math.min(resaltado, resultadosBusqueda.length - 1);
 
   // Igual que en el buscador: un producto sin stock no se puede vender, así que no tiene
   // sentido ofrecerlo como acceso directo.
   const accesosDirectos = productosRecientes.filter((producto) => producto.stockActual > 0);
 
-  async function handleEnterBusqueda(e: KeyboardEvent<HTMLInputElement>) {
+  async function handleTeclasBusqueda(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Escape') {
+      setMostrarDropdown(false);
+      setResaltado(-1);
+      return;
+    }
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (resultadosBusqueda.length === 0) return;
+      e.preventDefault();
+      setMostrarDropdown(true);
+      const total = resultadosBusqueda.length;
+      setResaltado((actual) => {
+        const base = Math.min(actual, total - 1);
+        return e.key === 'ArrowDown' ? (base + 1) % total : base <= 0 ? total - 1 : base - 1;
+      });
+      return;
+    }
+
     if (e.key !== 'Enter') return;
+
+    // Con un resultado resaltado con las flechas, Enter lo agrega. Sin resaltar, Enter busca por
+    // código de barras (lo que hace el lector al terminar de escanear).
+    if (mostrarDropdown && indiceResaltado >= 0) {
+      e.preventDefault();
+      handleSeleccionarResultado(resultadosBusqueda[indiceResaltado]);
+      return;
+    }
 
     const texto = terminoBusqueda.trim();
     if (!texto) return;
@@ -153,27 +185,26 @@ export function BuscadorProductos({
   }
 
   function handleSeleccionarResultado(producto: Producto) {
+    if (disabled) return;
     onSeleccionarProducto(producto);
     setTerminoBusqueda('');
     setErrorBusqueda(null);
     setMostrarDropdown(false);
-    // El clic en el resultado movió el foco al botón; se devuelve al campo para seguir escaneando.
+    setResaltado(-1);
+    // Se mantiene el foco en el campo para seguir buscando o escaneando sin tocar el mouse.
     enfocarCampo();
   }
 
   function handleEnfocarBusqueda() {
     if (omitirAperturaRef.current) return;
-    if (cierreDropdownRef.current) {
-      clearTimeout(cierreDropdownRef.current);
-      cierreDropdownRef.current = null;
-    }
     setMostrarDropdown(true);
   }
 
   function handleDesenfocarBusqueda() {
-    // Retraso para que el click en un resultado del dropdown alcance a
-    // registrarse antes de que este se oculte por el blur del input.
-    cierreDropdownRef.current = setTimeout(() => setMostrarDropdown(false), 150);
+    // Sin retraso: los clics dentro de la lista no le quitan el foco al campo (ver
+    // onMouseDown de la lista), así que un blur real siempre significa que el usuario salió.
+    setMostrarDropdown(false);
+    setResaltado(-1);
   }
 
   return (
@@ -191,9 +222,14 @@ export function BuscadorProductos({
             onChange={(e) => {
               setTerminoBusqueda(e.target.value);
               setErrorBusqueda(null);
+              setResaltado(-1);
+              setMostrarDropdown(true);
             }}
-            onKeyDown={handleEnterBusqueda}
+            onKeyDown={handleTeclasBusqueda}
             onFocus={handleEnfocarBusqueda}
+            // Si el campo ya tiene el foco (p. ej. tras agregar un producto) el clic no dispara
+            // onFocus: se reabre la lista aquí.
+            onClick={() => setMostrarDropdown(true)}
             onBlur={handleDesenfocarBusqueda}
             placeholder="Escanea el código o escribe el nombre del producto..."
             disabled={bloqueado}
@@ -205,7 +241,12 @@ export function BuscadorProductos({
         {errorBusqueda && <p className="text-sm text-error-text">{errorBusqueda}</p>}
 
         {mostrarDropdown && (
-          <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+          <div
+            className="max-h-72 overflow-y-auto rounded-md border border-border"
+            // Evita que presionar dentro de la lista le quite el foco al campo: así no se cierra
+            // ni se redibuja a mitad del clic y un solo clic basta.
+            onMouseDown={(e) => e.preventDefault()}
+          >
             {resultadosBusqueda.length === 0 ? (
               <p className="px-3 py-2 text-sm text-text-muted">
                 {buscandoNombre
@@ -215,13 +256,25 @@ export function BuscadorProductos({
                   : 'No hay productos disponibles.'}
               </p>
             ) : (
-              resultadosBusqueda.map((producto) => (
+              resultadosBusqueda.map((producto, indice) => (
                 <button
                   key={producto.id}
                   type="button"
                   disabled={disabled}
-                  onClick={() => handleSeleccionarResultado(producto)}
-                  className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-background disabled:pointer-events-none disabled:opacity-50"
+                  // Se agrega al presionar (un solo clic, sin esperar a soltar). El onClick solo
+                  // atiende la activación por teclado (detail = 0) para no agregar dos veces.
+                  onMouseDown={(e) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    handleSeleccionarResultado(producto);
+                  }}
+                  onClick={(e) => {
+                    if (e.detail === 0) handleSeleccionarResultado(producto);
+                  }}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-background disabled:pointer-events-none disabled:opacity-50',
+                    indice === indiceResaltado && 'bg-background ring-1 ring-inset ring-gold'
+                  )}
                 >
                   <span className="text-navy">{producto.nombre}</span>
                   <span className="whitespace-nowrap text-text-muted">

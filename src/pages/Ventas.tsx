@@ -497,6 +497,10 @@ export function Ventas() {
       return;
     }
 
+    // El buscador consulta al servidor y puede traer productos fuera de la lista cargada al abrir
+    // la pantalla; la venta necesita sus datos (nombre, precio) para mostrarlo y cobrarlo.
+    setProductos((actuales) => (actuales.some((p) => p.id === producto.id) ? actuales : [...actuales, producto]));
+
     setCarrito((actual) => {
       const existente = actual.find((linea) => linea.productoId === producto.id);
       if (existente) {
