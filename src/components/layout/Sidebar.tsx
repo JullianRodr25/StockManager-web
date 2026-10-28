@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Tags,
   Wallet,
+  Briefcase,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useBorradorVenta } from '@/context/BorradorVentaContext';
@@ -71,6 +72,17 @@ const modulos: ModuloNav[] = [
     children: [
       { label: 'Proveedores', to: '/proveedores' },
       { label: 'Cuentas por pagar', to: '/proveedores/cuentas-por-pagar' },
+    ],
+  },
+  {
+    label: 'Nómina',
+    to: '/nomina',
+    icon: Briefcase,
+    roles: SOLO_ADMIN,
+    children: [
+      { label: 'Quincena', to: '/nomina' },
+      { label: 'Trabajadores', to: '/nomina/trabajadores' },
+      { label: 'Préstamos', to: '/nomina/prestamos' },
     ],
   },
   { label: 'Reportes', to: '/reportes', icon: BarChart3, roles: SOLO_ADMIN },

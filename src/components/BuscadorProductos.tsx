@@ -297,7 +297,11 @@ export function BuscadorProductos({
                   key={producto.id}
                   type="button"
                   disabled={disabled}
-                  onClick={() => onSeleccionarProducto(producto)}
+                  onClick={() => {
+                    onSeleccionarProducto(producto);
+                    // El botón tomó el foco al hacer clic: se devuelve al buscador.
+                    enfocarCampo();
+                  }}
                   title={`Agregar ${producto.nombre}`}
                   className="rounded-full border border-border bg-background px-3 py-1.5 text-left text-sm text-navy transition-colors hover:border-gold hover:bg-gold/10 disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
                 >

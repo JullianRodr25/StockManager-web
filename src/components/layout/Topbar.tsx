@@ -27,6 +27,9 @@ const TITULOS_POR_RUTA: Record<string, string> = {
   '/clientes': 'Clientes',
   '/proveedores': 'Proveedores',
   '/proveedores/cuentas-por-pagar': 'Cuentas por pagar',
+  '/nomina': 'Nómina · Quincena',
+  '/nomina/trabajadores': 'Nómina · Trabajadores',
+  '/nomina/prestamos': 'Nómina · Préstamos',
   '/reportes': 'Reportes',
   '/configuracion': 'Configuración',
 };
@@ -39,6 +42,7 @@ const SECCION_POR_PREFIJO: Array<[string, string]> = [
   ['/pedidos', 'Operación'],
   ['/clientes', 'Operación'],
   ['/proveedores', 'Proveedores'],
+  ['/nomina', 'Administración'],
   ['/reportes', 'Administración'],
   ['/configuracion', 'Administración'],
 ];

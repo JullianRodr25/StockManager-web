@@ -14,6 +14,9 @@ import { Dashboard } from './pages/Dashboard';
 import { Inventario } from './pages/Inventario';
 import { EtiquetasPendientes } from './pages/EtiquetasPendientes';
 import { Reportes } from './pages/Reportes';
+import { NominaQuincena } from './pages/NominaQuincena';
+import { NominaTrabajadores } from './pages/NominaTrabajadores';
+import { NominaPrestamos } from './pages/NominaPrestamos';
 import { Configuracion } from './pages/Configuracion';
 import { Ventas } from './pages/Ventas';
 import { FiadoPage } from './pages/FiadoPage';
@@ -73,7 +76,7 @@ function App() {
                     <Route path="/clientes" element={<Clientes />} />
                     <Route path="/proveedores" element={<Proveedores />} />
                     <Route path="/proveedores/cuentas-por-pagar" element={<CuentasPorPagar />} />
-                    {/* Reportes y Configuración son solo del administrador. */}
+                    {/* Nómina, Reportes y Configuración son solo del administrador. */}
                     <Route
                       element={
                         <RutaProtegida rolesPermitidos={['Admin']}>
@@ -81,6 +84,9 @@ function App() {
                         </RutaProtegida>
                       }
                     >
+                      <Route path="/nomina" element={<NominaQuincena />} />
+                      <Route path="/nomina/trabajadores" element={<NominaTrabajadores />} />
+                      <Route path="/nomina/prestamos" element={<NominaPrestamos />} />
                       <Route path="/reportes" element={<Reportes />} />
                       <Route path="/configuracion" element={<Configuracion />} />
                     </Route>
