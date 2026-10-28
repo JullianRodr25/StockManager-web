@@ -388,6 +388,7 @@ function construirTiqueteCierreCaja(turno: TurnoCaja, nombreEmpresa: string): st
     monto('Ventas efectivo', totales.ventasEfectivo);
     monto('Abonos de fiado', totales.abonosFiadoEfectivo);
     monto('Pagos proveedores', -totales.pagosProveedorEfectivo);
+    if (totales.pagosNominaEfectivo > 0) monto('Pagos de nomina', -totales.pagosNominaEfectivo);
   }
   separador();
 

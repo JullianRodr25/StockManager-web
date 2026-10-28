@@ -71,13 +71,14 @@ const TEXTO_CONFIRMACION: Record<AccionConfirmable, { titulo: string; detalle: s
   },
   pagar: {
     titulo: '¿Registrar el pago de todos?',
-    detalle: 'Se marcan como pagados todos los trabajadores que falten, con su forma de pago habitual.',
+    detalle:
+      'Se marcan como pagados todos los trabajadores que falten. Lo pagado en efectivo sale de tu caja abierta (debes tener un turno abierto); lo transferido solo queda registrado.',
     boton: 'Registrar pagos',
   },
   cerrar: {
     titulo: '¿Cerrar la quincena?',
     detalle:
-      'Se descuentan las cuotas de los préstamos de esta quincena y ya no se puede modificar. Después podrás abrir la siguiente.',
+      'Se descuentan las cuotas de los préstamos, se crea en Cuentas por pagar lo retenido por salud y pensión, y la quincena ya no se puede modificar. Después podrás abrir la siguiente.',
     boton: 'Cerrar quincena',
   },
 };

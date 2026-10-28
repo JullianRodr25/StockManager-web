@@ -27,6 +27,9 @@ export function ResumenTurno({ turno }: { turno: TurnoCaja }) {
           <Fila etiqueta="+ Ventas en efectivo" valor={formatoMoneda.format(totales.ventasEfectivo)} />
           <Fila etiqueta="+ Abonos de fiado" valor={formatoMoneda.format(totales.abonosFiadoEfectivo)} />
           <Fila etiqueta="− Pagos a proveedores" valor={formatoMoneda.format(totales.pagosProveedorEfectivo)} />
+          {totales.pagosNominaEfectivo > 0 && (
+            <Fila etiqueta="− Pagos de nómina" valor={formatoMoneda.format(totales.pagosNominaEfectivo)} />
+          )}
           {turno.efectivoEsperado !== null && (
             <div className="border-t border-border pt-2">
               <Fila etiqueta="Esperado en caja" valor={formatoMoneda.format(turno.efectivoEsperado)} fuerte />

@@ -6,6 +6,7 @@ export interface TotalesCaja {
   ventasEfectivo: number;
   abonosFiadoEfectivo: number;
   pagosProveedorEfectivo: number;
+  pagosNominaEfectivo: number;
   /** Solo para conciliar con el banco: no entra en el efectivo esperado. */
   transferencias: number;
   /** Solo para conciliar con el datáfono: no entra en el efectivo esperado. */
