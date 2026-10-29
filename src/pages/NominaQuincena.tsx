@@ -17,6 +17,7 @@ import {
   eliminarNovedad,
   obtenerParametrosNomina,
   obtenerPeriodo,
+  obtenerPeriodoActual,
   obtenerPeriodos,
   obtenerResumenNomina,
   pagarLiquidacion,
@@ -26,13 +27,14 @@ import {
 import type {
   AlertaNomina,
   EstadoPeriodo,
+  FrecuenciaPago,
   LiquidacionNomina,
   NominaResumen,
   ParametrosNomina,
   PeriodoNomina,
   PeriodoNominaResumen,
 } from '@/types/nomina';
-import { ESTADOS_PERIODO, etiquetaQuincena } from '@/utils/nomina';
+import { ESTADOS_PERIODO, FRECUENCIAS_PAGO, NOMBRE_PERIODO, etiquetaQuincena } from '@/utils/nomina';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,9 +66,9 @@ type AccionConfirmable = 'aprobar' | 'pagar' | 'cerrar';
 
 const TEXTO_CONFIRMACION: Record<AccionConfirmable, { titulo: string; detalle: string; boton: string }> = {
   aprobar: {
-    titulo: '¿Aprobar esta quincena?',
+    titulo: '¿Aprobar este período?',
     detalle:
-      'Se congelan los valores: después de aprobar ya no se pueden cambiar sueldos, novedades ni cuotas en esta quincena.',
+      'Se congelan los valores: después de aprobar ya no se pueden cambiar sueldos, novedades ni cuotas en este período.',
     boton: 'Aprobar',
   },
   pagar: {
@@ -76,10 +78,10 @@ const TEXTO_CONFIRMACION: Record<AccionConfirmable, { titulo: string; detalle: s
     boton: 'Registrar pagos',
   },
   cerrar: {
-    titulo: '¿Cerrar la quincena?',
+    titulo: '¿Cerrar el período?',
     detalle:
-      'Se descuentan las cuotas de los préstamos, se crea en Cuentas por pagar lo retenido por salud y pensión, y la quincena ya no se puede modificar. Después podrás abrir la siguiente.',
-    boton: 'Cerrar quincena',
+      'Se descuentan las cuotas de los préstamos, se crea en Cuentas por pagar lo retenido por salud y pensión, y el período ya no se puede modificar. Después podrás abrir el siguiente.',
+    boton: 'Cerrar período',
   },
 };
 
@@ -124,7 +126,8 @@ export function NominaQuincena() {
   const { token } = useAuth();
 
   const [resumen, setResumen] = useState<NominaResumen | null>(null);
-  const [periodos, setPeriodos] = useState<PeriodoNominaResumen[]>([]);
+  const [frecuencia, setFrecuencia] = useState<FrecuenciaPago>('Quincenal');
+  const [todosPeriodos, setTodosPeriodos] = useState<PeriodoNominaResumen[]>([]);
   const [periodo, setPeriodo] = useState<PeriodoNomina | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +145,7 @@ export function NominaQuincena() {
       obtenerPeriodos(token),
     ]);
     setResumen(nuevoResumen);
-    setPeriodos(nuevosPeriodos);
+    setTodosPeriodos(nuevosPeriodos);
     return { nuevoResumen, nuevosPeriodos };
   }, [token]);
 
@@ -150,16 +153,21 @@ export function NominaQuincena() {
     setCargando(true);
     setError(null);
     try {
-      const { nuevoResumen, nuevosPeriodos } = await refrescarContexto();
-      // Por defecto: la quincena de hoy, o la más reciente que exista.
-      const idInicial = nuevoResumen.periodoActual?.id ?? nuevosPeriodos[0]?.id ?? null;
-      setPeriodo(idInicial ? await obtenerPeriodo(idInicial, token) : null);
+      const { nuevosPeriodos } = await refrescarContexto();
+      // Por defecto: el período de hoy de esta frecuencia, o el más reciente que exista.
+      const actual = await obtenerPeriodoActual(frecuencia, token);
+      if (actual) {
+        setPeriodo(actual);
+      } else {
+        const idInicial = nuevosPeriodos.find((p) => p.frecuencia === frecuencia)?.id ?? null;
+        setPeriodo(idInicial ? await obtenerPeriodo(idInicial, token) : null);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo cargar la nómina.');
     } finally {
       setCargando(false);
     }
-  }, [refrescarContexto, token]);
+  }, [refrescarContexto, frecuencia, token]);
 
   useEffect(() => {
     cargarInicial();
@@ -195,9 +203,9 @@ export function NominaQuincena() {
     const id = periodo.resumen.id;
     const accion = confirmando;
     setConfirmando(null);
-    if (accion === 'aprobar') ejecutar(() => aprobarPeriodo(id, token), 'Quincena aprobada');
+    if (accion === 'aprobar') ejecutar(() => aprobarPeriodo(id, token), `${Nombre} aprobad${nombre.articulo === 'la' ? 'a' : 'o'}`);
     if (accion === 'pagar') ejecutar(() => pagarPeriodo(id, token), 'Pagos registrados');
-    if (accion === 'cerrar') ejecutar(() => cerrarPeriodo(id, token), 'Quincena cerrada');
+    if (accion === 'cerrar') ejecutar(() => cerrarPeriodo(id, token), `${Nombre} cerrad${nombre.articulo === 'la' ? 'a' : 'o'}`);
   }
 
   async function abrirParametros() {
@@ -210,6 +218,9 @@ export function NominaQuincena() {
   }
 
   const estado = periodo?.resumen.estado;
+  const periodos = todosPeriodos.filter((p) => p.frecuencia === frecuencia);
+  const nombre = NOMBRE_PERIODO[frecuencia];
+  const Nombre = nombre.singular.charAt(0).toUpperCase() + nombre.singular.slice(1);
   const hayQuincenaSinCerrar = periodos.some((p) => p.estado !== 'Cerrada');
   const detalle = periodo?.liquidaciones.find((l) => l.trabajadorId === detalleTrabajadorId) ?? null;
 
@@ -226,7 +237,7 @@ export function NominaQuincena() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-heading text-2xl font-semibold text-navy">Nómina</h2>
-          <p className="text-sm text-text-muted">Pago quincenal: revisa, aprueba, paga y cierra.</p>
+          <p className="text-sm text-text-muted">Revisa, aprueba, paga y cierra cada período. Cada frecuencia de pago tiene el suyo.</p>
         </div>
         <Button variant="outline" onClick={abrirParametros}>
           <Settings2 className="h-4 w-4" />
@@ -235,6 +246,21 @@ export function NominaQuincena() {
       </div>
 
       <NominaTabs />
+
+      <div role="group" aria-label="Frecuencia de pago" className="flex flex-wrap gap-2">
+        {FRECUENCIAS_PAGO.map((f) => (
+          <Button
+            key={f}
+            size="sm"
+            variant={f === frecuencia ? 'default' : 'outline'}
+            aria-pressed={f === frecuencia}
+            disabled={trabajando}
+            onClick={() => setFrecuencia(f)}
+          >
+            {f}
+          </Button>
+        ))}
+      </div>
 
       {error && (
         <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
@@ -264,14 +290,14 @@ export function NominaQuincena() {
       {!periodo ? (
         <Card className="border-border">
           <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-            <p className="text-navy">Todavía no hay quincenas. Ábrela para calcular lo que le toca a cada trabajador.</p>
+            <p className="text-navy">Todavía no hay períodos {frecuencia.toLowerCase() === 'mensual' ? 'mensuales' : frecuencia.toLowerCase() === 'semanal' ? 'semanales' : 'quincenales'}. Ábrelo para calcular lo que le toca a cada trabajador que cobra así.</p>
             <Button
               variant="gold"
               disabled={trabajando}
-              onClick={() => ejecutar(() => abrirPeriodo(null, token), 'Quincena abierta')}
+              onClick={() => ejecutar(() => abrirPeriodo(null, frecuencia, token), 'Período abierto')}
             >
               <Plus className="h-4 w-4" />
-              Abrir quincena
+              Abrir {nombre.singular}
             </Button>
           </CardContent>
         </Card>
@@ -282,7 +308,7 @@ export function NominaQuincena() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="font-heading text-xl font-semibold text-navy">
-                    Quincena {etiquetaQuincena(periodo.resumen.fechaInicio, periodo.resumen.fechaFin)}
+                    {Nombre} {etiquetaQuincena(periodo.resumen.fechaInicio, periodo.resumen.fechaFin)}
                   </p>
                   <div className="mt-2">
                     <PasosQuincena estado={periodo.resumen.estado} />
@@ -295,7 +321,7 @@ export function NominaQuincena() {
                       <Button
                         variant="outline"
                         disabled={trabajando}
-                        onClick={() => ejecutar(() => recalcularPeriodo(periodo.resumen.id, token), 'Quincena recalculada')}
+                        onClick={() => ejecutar(() => recalcularPeriodo(periodo.resumen.id, token), `${Nombre} recalculad${nombre.articulo === 'la' ? 'a' : 'o'}`)}
                       >
                         <RefreshCw className="h-4 w-4" />
                         Recalcular
@@ -305,7 +331,7 @@ export function NominaQuincena() {
                         disabled={trabajando || periodo.liquidaciones.length === 0}
                         onClick={() => setConfirmando('aprobar')}
                       >
-                        Aprobar quincena
+                        Aprobar {nombre.singular}
                       </Button>
                     </>
                   )}
@@ -316,7 +342,7 @@ export function NominaQuincena() {
                   )}
                   {estado === 'Pagada' && (
                     <Button variant="gold" disabled={trabajando} onClick={() => setConfirmando('cerrar')}>
-                      Cerrar quincena
+                      Cerrar {nombre.singular}
                     </Button>
                   )}
                   {estado === 'Cerrada' && (
@@ -329,10 +355,10 @@ export function NominaQuincena() {
                     <Button
                       variant="outline"
                       disabled={trabajando}
-                      onClick={() => ejecutar(() => abrirPeriodo(null, token), 'Quincena abierta')}
+                      onClick={() => ejecutar(() => abrirPeriodo(null, frecuencia, token), 'Período abierto')}
                     >
                       <Plus className="h-4 w-4" />
-                      Abrir siguiente quincena
+                      Abrir {nombre.singular} siguiente
                     </Button>
                   )}
                 </div>
@@ -371,7 +397,7 @@ export function NominaQuincena() {
                   {periodo.liquidaciones.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="py-8 text-center text-text-muted">
-                        No hay trabajadores para esta quincena. Agrégalos en la pestaña Trabajadores.
+                        No hay trabajadores con pago {frecuencia.toLowerCase()} en este período. Define la frecuencia de cada uno en la pestaña Trabajadores.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -433,7 +459,7 @@ export function NominaQuincena() {
           {periodos.length > 1 && (
             <Card className="border-border">
               <CardContent className="space-y-3 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Quincenas anteriores</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Períodos anteriores</p>
                 <div className="flex flex-wrap gap-2">
                   {periodos.map((p) => (
                     <Button

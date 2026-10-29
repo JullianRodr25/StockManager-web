@@ -4,6 +4,7 @@ import type {
   AgregarNovedadRequest,
   CrearPrestamoRequest,
   EstadoPrestamo,
+  FrecuenciaPago,
   GuardarTrabajadorRequest,
   NominaResumen,
   ParametrosNomina,
@@ -63,15 +64,15 @@ export const cancelarPrestamo = (id: number, token: string | null) =>
 export const obtenerPeriodos = (token: string | null) =>
   apiRequest<PeriodoNominaResumen[]>(`${BASE}/periodos`, { token });
 
-/** La quincena de hoy; null si todavía no se abrió (el backend responde 204). */
-export const obtenerPeriodoActual = (token: string | null) =>
-  apiRequest<PeriodoNomina | null>(`${BASE}/periodos/actual`, { token });
+/** El período de hoy de esa frecuencia; null si todavía no se abrió (el backend responde 204). */
+export const obtenerPeriodoActual = (frecuencia: FrecuenciaPago, token: string | null) =>
+  apiRequest<PeriodoNomina | null>(`${BASE}/periodos/actual?frecuencia=${frecuencia}`, { token });
 
 export const obtenerPeriodo = (id: number, token: string | null) =>
   apiRequest<PeriodoNomina>(`${BASE}/periodos/${id}`, { token });
 
-export const abrirPeriodo = (fechaInicio: string | null, token: string | null) =>
-  apiRequest<PeriodoNomina>(`${BASE}/periodos`, { method: 'POST', body: { fechaInicio }, token });
+export const abrirPeriodo = (fechaInicio: string | null, frecuencia: FrecuenciaPago, token: string | null) =>
+  apiRequest<PeriodoNomina>(`${BASE}/periodos`, { method: 'POST', body: { fechaInicio, frecuencia }, token });
 
 const accionPeriodo = (id: number, accion: string, token: string | null) =>
   apiRequest<PeriodoNomina>(`${BASE}/periodos/${id}/${accion}`, { method: 'POST', token });

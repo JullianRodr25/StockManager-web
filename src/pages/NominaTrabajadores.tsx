@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Loader2, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { FileText, Loader2, Pencil, Plus, ReceiptText, RotateCcw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -13,13 +13,28 @@ import {
   actualizarTrabajador,
   crearTrabajador,
   desactivarTrabajador,
+  obtenerParametrosNomina,
+  obtenerPeriodo,
+  obtenerPeriodos,
   obtenerTrabajadores,
 } from '@/services/nominaService';
-import type { GuardarTrabajadorRequest, MetodoPagoNomina, TipoContrato, Trabajador } from '@/types/nomina';
+import { obtenerConfiguracion } from '@/services/configuracionService';
+import type {
+  FrecuenciaPago,
+  GuardarTrabajadorRequest,
+  MetodoPagoNomina,
+  PeriodoNominaResumen,
+  TipoContrato,
+  Trabajador,
+} from '@/types/nomina';
+import { descargarCertificadoTrabajo, descargarDesprendible } from '@/utils/pdfNomina';
+import type { EmpresaDocumento } from '@/utils/pdfNomina';
 import {
   contratoRequiereFin,
   ETIQUETA_CONTRATO,
+  etiquetaQuincena,
   formatearDia,
+  FRECUENCIAS_PAGO,
   METODOS_PAGO,
   soloDia,
   TIPOS_CONTRATO,
@@ -64,6 +79,7 @@ interface TrabajadorForm {
   salarioMensual: string;
   aplicaSeguridadSocial: boolean;
   metodoPago: MetodoPagoNomina;
+  frecuenciaPago: FrecuenciaPago;
 }
 
 function formularioVacio(): TrabajadorForm {
@@ -78,6 +94,7 @@ function formularioVacio(): TrabajadorForm {
     salarioMensual: '',
     aplicaSeguridadSocial: true,
     metodoPago: 'Efectivo',
+    frecuenciaPago: 'Quincenal',
   };
 }
 
@@ -104,6 +121,13 @@ export function NominaTrabajadores() {
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
 
   const [paraDesactivar, setParaDesactivar] = useState<Trabajador | null>(null);
+
+  // Documentos en PDF
+  const [certificadoId, setCertificadoId] = useState<number | null>(null);
+  const [paraDesprendibles, setParaDesprendibles] = useState<Trabajador | null>(null);
+  const [periodosDesprendible, setPeriodosDesprendible] = useState<PeriodoNominaResumen[]>([]);
+  const [cargandoPeriodos, setCargandoPeriodos] = useState(false);
+  const [descargandoPeriodoId, setDescargandoPeriodoId] = useState<number | null>(null);
   const [desactivando, setDesactivando] = useState(false);
   const [activandoId, setActivandoId] = useState<number | null>(null);
 
@@ -159,6 +183,7 @@ export function NominaTrabajadores() {
       salarioMensual: String(t.salarioMensual),
       aplicaSeguridadSocial: t.aplicaSeguridadSocial,
       metodoPago: t.metodoPago,
+      frecuenciaPago: t.frecuenciaPago,
     });
     setErrorFormulario(null);
     setDialogAbierto(true);
@@ -192,6 +217,7 @@ export function NominaTrabajadores() {
       salarioMensual: salario,
       aplicaSeguridadSocial: formulario.aplicaSeguridadSocial,
       metodoPago: formulario.metodoPago,
+      frecuenciaPago: formulario.frecuenciaPago,
     };
 
     setGuardando(true);
@@ -227,6 +253,70 @@ export function NominaTrabajadores() {
       toast.error(err instanceof ApiError ? err.message : 'No se pudo desactivar el trabajador.');
     } finally {
       setDesactivando(false);
+    }
+  }
+
+  async function obtenerEmpresa(): Promise<EmpresaDocumento> {
+    try {
+      const c = await obtenerConfiguracion(token);
+      return {
+        nombre: c.nombreEmpresa,
+        nit: c.nitEmpresa,
+        direccion: c.direccionEmpresa,
+        telefono: c.telefonoEmpresa,
+        ciudad: c.ciudadEmpresa,
+      };
+    } catch {
+      // Sin configuración el documento sale con el nombre por defecto.
+      return { nombre: null, nit: null, direccion: null, telefono: null, ciudad: null };
+    }
+  }
+
+  async function handleCertificado(t: Trabajador) {
+    setCertificadoId(t.id);
+    try {
+      const [empresa, parametros] = await Promise.all([
+        obtenerEmpresa(),
+        obtenerParametrosNomina(token).catch(() => null),
+      ]);
+      await descargarCertificadoTrabajo(t, parametros, empresa);
+    } catch {
+      toast.error('No se pudo generar el certificado.');
+    } finally {
+      setCertificadoId(null);
+    }
+  }
+
+  async function abrirDesprendibles(t: Trabajador) {
+    setParaDesprendibles(t);
+    setPeriodosDesprendible([]);
+    setCargandoPeriodos(true);
+    try {
+      const todos = await obtenerPeriodos(token);
+      // Un borrador todavía puede cambiar: solo se entregan períodos ya aprobados.
+      setPeriodosDesprendible(todos.filter((p) => p.frecuencia === t.frecuenciaPago && p.estado !== 'Borrador'));
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudieron cargar los períodos.');
+    } finally {
+      setCargandoPeriodos(false);
+    }
+  }
+
+  async function handleDescargarDesprendible(p: PeriodoNominaResumen) {
+    if (!paraDesprendibles) return;
+    setDescargandoPeriodoId(p.id);
+    try {
+      const [detalle, empresa] = await Promise.all([obtenerPeriodo(p.id, token), obtenerEmpresa()]);
+      const liquidacion = detalle.liquidaciones.find((l) => l.trabajadorId === paraDesprendibles.id);
+      if (!liquidacion) {
+        toast.error('Este trabajador no participó en ese período.');
+        return;
+      }
+      await descargarDesprendible(liquidacion, p, paraDesprendibles, empresa);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo generar el desprendible.');
+    } finally {
+      setDescargandoPeriodoId(null);
     }
   }
 
@@ -286,6 +376,7 @@ export function NominaTrabajadores() {
                 <TableHead className="text-right">Sueldo mensual</TableHead>
                 <TableHead>Seg. social</TableHead>
                 <TableHead>Pago</TableHead>
+                <TableHead>Frecuencia</TableHead>
                 <TableHead className="text-right">Debe</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -293,13 +384,13 @@ export function NominaTrabajadores() {
             <TableBody>
               {cargando ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={8} className="py-8 text-center text-text-muted">
                     <PantallaCargaLogo variante="en-linea" />
                   </TableCell>
                 </TableRow>
               ) : visibles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-text-muted">
+                  <TableCell colSpan={8} className="py-8 text-center text-text-muted">
                     Aún no hay trabajadores. Agrega el primero con “Nuevo trabajador”.
                   </TableCell>
                 </TableRow>
@@ -330,11 +421,35 @@ export function NominaTrabajadores() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-navy">{t.metodoPago}</TableCell>
+                    <TableCell className="text-navy">{t.frecuenciaPago}</TableCell>
                     <TableCell className="text-right text-navy">
                       {t.saldoPrestamos > 0 ? formatoMoneda.format(t.saldoPrestamos) : '—'}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Desprendibles de pago de ${t.nombre}`}
+                          title="Desprendibles de pago"
+                          onClick={() => abrirDesprendibles(t)}
+                        >
+                          <ReceiptText className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Certificado de trabajo de ${t.nombre}`}
+                          title="Certificado de trabajo"
+                          disabled={certificadoId === t.id}
+                          onClick={() => handleCertificado(t)}
+                        >
+                          {certificadoId === t.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
+                        </Button>
                         <Button variant="ghost" size="icon" aria-label={`Editar ${t.nombre}`} onClick={() => abrirEditar(t)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -422,6 +537,24 @@ export function NominaTrabajadores() {
                     {TIPOS_CONTRATO.map((tipo) => (
                       <SelectItem key={tipo} value={tipo}>
                         {ETIQUETA_CONTRATO[tipo]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="trab-frecuencia">Frecuencia de pago</Label>
+                <Select
+                  value={formulario.frecuenciaPago}
+                  onValueChange={(v) => actualizarCampo('frecuenciaPago', v as FrecuenciaPago)}
+                >
+                  <SelectTrigger id="trab-frecuencia">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FRECUENCIAS_PAGO.map((f) => (
+                      <SelectItem key={f} value={f}>
+                        {f}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -548,6 +681,46 @@ export function NominaTrabajadores() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={paraDesprendibles !== null} onOpenChange={(abierto) => !abierto && setParaDesprendibles(null)}>
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Desprendibles de {paraDesprendibles?.nombre}</DialogTitle>
+          </DialogHeader>
+          {cargandoPeriodos ? (
+            <div className="py-6 text-center">
+              <PantallaCargaLogo variante="en-linea" />
+            </div>
+          ) : periodosDesprendible.length === 0 ? (
+            <p className="text-sm text-text-muted">
+              Todavía no hay períodos {paraDesprendibles?.frecuenciaPago.toLowerCase()} aprobados. Cuando apruebes uno,
+              podrás descargar su desprendible aquí.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {periodosDesprendible.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+                  <span className="text-sm text-navy">
+                    {etiquetaQuincena(p.fechaInicio, p.fechaFin)}
+                    <span className="ml-2 text-xs text-text-muted">{p.estado}</span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={descargandoPeriodoId === p.id}
+                    onClick={() => handleDescargarDesprendible(p)}
+                  >
+                    {descargandoPeriodoId === p.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    ) : (
+                      'Descargar PDF'
+                    )}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

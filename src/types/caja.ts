@@ -61,6 +61,15 @@ export interface TurnosCajaPaginadosResponse {
   totalPaginas: number;
 }
 
+/** Lo que necesita la pantalla para abrir caja (GET /api/caja/apertura). */
+export interface AperturaCaja {
+  /** true solo cuando no hay ninguna caja cerrada: ahí la base se escribe a mano. */
+  requiereBaseManual: boolean;
+  /** Efectivo contado en el último cierre. */
+  baseSugerida: number;
+  ultimoCierre: TurnoCaja | null;
+}
+
 export interface AbrirTurnoRequest {
   baseInicial: number;
 }

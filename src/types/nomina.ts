@@ -3,6 +3,7 @@
 
 export type TipoContrato = 'Indefinido' | 'Fijo' | 'ObraLabor' | 'PrestacionServicios';
 export type MetodoPagoNomina = 'Efectivo' | 'Transferencia';
+export type FrecuenciaPago = 'Semanal' | 'Quincenal' | 'Mensual';
 
 export interface Trabajador {
   id: number;
@@ -16,6 +17,7 @@ export interface Trabajador {
   salarioMensual: number;
   aplicaSeguridadSocial: boolean;
   metodoPago: MetodoPagoNomina;
+  frecuenciaPago: FrecuenciaPago;
   activo: boolean;
   saldoPrestamos: number;
   diasParaFinContrato: number | null;
@@ -32,6 +34,7 @@ export interface GuardarTrabajadorRequest {
   salarioMensual: number;
   aplicaSeguridadSocial: boolean;
   metodoPago: MetodoPagoNomina;
+  frecuenciaPago: FrecuenciaPago;
 }
 
 export interface ParametrosNomina {
@@ -116,6 +119,7 @@ export interface LiquidacionNomina {
 
 export interface PeriodoNominaResumen {
   id: number;
+  frecuencia: FrecuenciaPago;
   fechaInicio: string;
   fechaFin: string;
   estado: EstadoPeriodo;

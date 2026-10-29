@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, Loader2, Lock, Printer, Wallet } from 'lucide-react';
+import { Eye, Loader2, Lock, Printer, Unlock, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useCaja } from '@/context/CajaContext';
@@ -9,11 +9,13 @@ import {
   abrirTurno,
   cerrarTurno,
   forzarCierreTurno,
+  obtenerApertura,
   obtenerHistorialTurnos,
   obtenerTurno,
+  verificarContrasenaCajon,
 } from '@/services/cajaService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
-import { imprimirCierreCaja } from '@/services/impresionService';
+import { abrirCajon, imprimirCierreCaja } from '@/services/impresionService';
 import { formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { FormularioCierre } from '@/components/caja/FormularioCierre';
 import { ResumenCierre, ResumenTurno } from '@/components/caja/ResumenTurno';
@@ -24,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { CerrarTurnoRequest, TurnoCaja, TurnoCajaResumen } from '@/types/caja';
+import type { AperturaCaja, CerrarTurnoRequest, TurnoCaja, TurnoCajaResumen } from '@/types/caja';
 import type { ConfiguracionGeneral } from '@/types/configuracion';
 
 const TAMANO_HISTORIAL = 20;
@@ -44,6 +46,14 @@ export function Caja() {
   const [baseInput, setBaseInput] = useState('');
   const [abriendo, setAbriendo] = useState(false);
   const [errorApertura, setErrorApertura] = useState<string | null>(null);
+  const [apertura, setApertura] = useState<AperturaCaja | null>(null);
+  const [imprimirUltima, setImprimirUltima] = useState(true);
+
+  // Abrir el cajón físico (pide la contraseña del usuario logueado)
+  const [cajonAbierto, setCajonAbierto] = useState(false);
+  const [claveCajon, setClaveCajon] = useState('');
+  const [verificandoCajon, setVerificandoCajon] = useState(false);
+  const [errorCajon, setErrorCajon] = useState<string | null>(null);
 
   // Cierre del turno propio
   const [cerrando, setCerrando] = useState(false);
@@ -77,6 +87,19 @@ export function Caja() {
       });
   }, [token]);
 
+  // La base de apertura sale del último cierre; se consulta cada vez que no hay caja abierta.
+  const cargarApertura = useCallback(async () => {
+    try {
+      setApertura(await obtenerApertura(token));
+    } catch (err) {
+      setErrorApertura(mensajeDe(err, 'No se pudo consultar la última caja cerrada.'));
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!turno) cargarApertura();
+  }, [turno, cargarApertura]);
+
   const cargarHistorial = useCallback(async () => {
     setCargandoHistorial(true);
     setErrorHistorial(null);
@@ -96,7 +119,9 @@ export function Caja() {
 
   async function handleAbrir(e: FormEvent) {
     e.preventDefault();
-    const base = baseInput.trim() === '' ? 0 : Number(baseInput);
+    if (!apertura) return;
+    // Con un cierre previo la base la fija el servidor; solo la primera vez se escribe a mano.
+    const base = apertura.requiereBaseManual ? (baseInput.trim() === '' ? 0 : Number(baseInput)) : 0;
     if (!Number.isFinite(base) || base < 0) {
       setErrorApertura('La base debe ser un valor mayor o igual a 0.');
       return;
@@ -110,6 +135,7 @@ export function Caja() {
       setBaseInput('');
       setCierreReciente(null);
       toast.success('Caja abierta');
+      if (imprimirUltima && apertura.ultimoCierre) await handleImprimir(apertura.ultimoCierre);
       cargarHistorial();
     } catch (err) {
       setErrorApertura(mensajeDe(err, 'No se pudo abrir la caja.'));
@@ -160,6 +186,28 @@ export function Caja() {
       toast.error(mensajeDe(err, 'No se pudo cargar el turno.'));
     } finally {
       setCargandoDetalleId(null);
+    }
+  }
+
+  async function handleConfirmarCajon(e: FormEvent) {
+    e.preventDefault();
+    const impresora = configuracion?.nombreImpresoraTickets;
+    if (!impresora) {
+      setErrorCajon('Configura el nombre de la impresora en Configuración para abrir el cajón.');
+      return;
+    }
+    setVerificandoCajon(true);
+    setErrorCajon(null);
+    try {
+      await verificarContrasenaCajon(claveCajon, token);
+      await abrirCajon(impresora);
+      setCajonAbierto(false);
+      setClaveCajon('');
+      toast.success('Cajón abierto');
+    } catch (err) {
+      setErrorCajon(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'No se pudo abrir el cajón.');
+    } finally {
+      setVerificandoCajon(false);
     }
   }
 
@@ -263,27 +311,60 @@ export function Caja() {
             <CardHeader>
               <CardTitle className="text-navy">Abrir caja</CardTitle>
               <CardDescription>
-                Indica el efectivo con el que arrancas (la base). Sin caja abierta no se pueden recibir pagos en
-                efectivo.
+                Sin caja abierta no se pueden recibir pagos en efectivo.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleAbrir} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="baseInicial">Base inicial</Label>
-                  <Input
-                    id="baseInicial"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1}
-                    placeholder="0"
-                    value={baseInput}
-                    onChange={(e) => setBaseInput(e.target.value)}
-                    disabled={abriendo}
-                    className="sin-flechas max-w-xs"
-                  />
-                </div>
+              <form onSubmit={handleAbrir} className="space-y-4">
+                {!apertura ? (
+                  <div className="flex items-center gap-2 text-sm text-text-muted">
+                    <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    Consultando la última caja...
+                  </div>
+                ) : apertura.requiereBaseManual ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="baseInicial">Base inicial (solo esta vez)</Label>
+                    <Input
+                      id="baseInicial"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      placeholder="0"
+                      value={baseInput}
+                      onChange={(e) => setBaseInput(e.target.value)}
+                      disabled={abriendo}
+                      className="sin-flechas max-w-xs"
+                    />
+                    <p className="text-xs text-text-muted">
+                      Aún no hay ninguna caja cerrada. Desde el próximo turno la base se toma sola del cierre anterior.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="rounded-md border border-border bg-surface px-4 py-3">
+                      <p className="text-xs uppercase tracking-wide text-text-muted">Base heredada del cierre anterior</p>
+                      <p className="font-heading text-3xl font-semibold tabular-nums text-navy">
+                        {formatoMoneda.format(apertura.baseSugerida)}
+                      </p>
+                      {apertura.ultimoCierre?.fechaCierre && (
+                        <p className="text-xs text-text-muted">
+                          Efectivo contado al cerrar {apertura.ultimoCierre.empleadoNombre},{' '}
+                          {formatoFecha(apertura.ultimoCierre.fechaCierre)}
+                        </p>
+                      )}
+                    </div>
+                    <label className="flex items-start gap-2 text-sm text-navy">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={imprimirUltima}
+                        onChange={(e) => setImprimirUltima(e.target.checked)}
+                      />
+                      <span>Imprimir la última caja cerrada al abrir</span>
+                    </label>
+                  </div>
+                )}
 
                 {errorApertura && (
                   <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
@@ -291,9 +372,33 @@ export function Caja() {
                   </div>
                 )}
 
-                <Button type="submit" variant="gold" disabled={abriendo}>
-                  {abriendo ? 'Abriendo...' : 'Abrir caja'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" variant="gold" disabled={abriendo || !apertura}>
+                    {abriendo ? 'Abriendo...' : 'Abrir caja'}
+                  </Button>
+                  {apertura?.ultimoCierre && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => apertura.ultimoCierre && handleImprimir(apertura.ultimoCierre)}
+                    >
+                      <Printer className="mr-2 h-4 w-4" />
+                      Imprimir última caja
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setClaveCajon('');
+                      setErrorCajon(null);
+                      setCajonAbierto(true);
+                    }}
+                  >
+                    <Unlock className="mr-2 h-4 w-4" />
+                    Abrir cajón
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -423,6 +528,42 @@ export function Caja() {
               onCancelar={() => setTurnoParaForzar(null)}
             />
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={cajonAbierto} onOpenChange={(abierto) => !verificandoCajon && setCajonAbierto(abierto)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Abrir el cajón</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleConfirmarCajon} className="space-y-3">
+            <p className="text-sm text-text-muted">
+              Escribe tu contraseña para abrir el cajón de dinero.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="claveCajon">Tu contraseña</Label>
+              <Input
+                id="claveCajon"
+                type="password"
+                autoComplete="current-password"
+                value={claveCajon}
+                onChange={(e) => setClaveCajon(e.target.value)}
+                disabled={verificandoCajon}
+              />
+            </div>
+            {errorCajon && (
+              <div className="rounded-md border border-red-200 bg-error-bg px-3 py-2 text-sm text-error-text" role="alert">
+                {errorCajon}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" disabled={verificandoCajon} onClick={() => setCajonAbierto(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="gold" disabled={verificandoCajon || claveCajon === ''}>
+                {verificandoCajon ? 'Verificando...' : 'Abrir cajón'}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
