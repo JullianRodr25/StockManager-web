@@ -40,6 +40,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { esOperativo } from '@/utils/permisos';
 
 const TAMANO_PAGINA = 100;
 
@@ -66,6 +67,9 @@ const FORMATO_TELEFONO_E164 = /^\+[1-9]\d{7,14}$/;
 export function Proveedores() {
   const { usuario, token } = useAuth();
   const esAdmin = usuario?.rol === 'Admin';
+  // Crear un proveedor lo puede hacer Admin y Caja (el backend aplica la misma regla); editar y
+  // desactivar siguen siendo solo del Admin.
+  const puedeCrearProveedor = esOperativo(usuario?.rol);
 
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -224,7 +228,7 @@ export function Proveedores() {
               Mostrar inactivos
             </label>
           )}
-          {esAdmin && (
+          {puedeCrearProveedor && (
             <Button variant="gold" onClick={abrirDialogNuevo}>
               <Plus className="h-4 w-4" />
               Nuevo proveedor
@@ -282,7 +286,7 @@ export function Proveedores() {
                       <TableCell className="text-navy">{proveedor.numeroWhatsApp ?? '—'}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" asChild aria-label={`Cuentas por pagar de ${proveedor.nombre}`}>
+                          <Button variant="ghost" size="icon" asChild aria-label={`Pagos de caja menor de ${proveedor.nombre}`}>
                             <Link to={`/proveedores/cuentas-por-pagar?proveedorId=${proveedor.id}`}>
                               <Receipt className="h-4 w-4" />
                             </Link>
@@ -341,7 +345,7 @@ export function Proveedores() {
             <DialogDescription>
               {proveedorEditando
                 ? 'Actualiza los datos de contacto del proveedor.'
-                : 'Registra un proveedor nuevo para poder llevarle cuentas por pagar a crédito.'}
+                : 'Registra un proveedor nuevo para poder llevarle pagos de caja menor a crédito.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -436,7 +440,7 @@ export function Proveedores() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Desactivar este proveedor?</AlertDialogTitle>
             <AlertDialogDescription>
-              Ya no podrás registrarle nuevas cuentas por pagar, pero su historial se conserva.
+              Ya no podrás registrarle nuevos pagos de caja menor, pero su historial se conserva.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

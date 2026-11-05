@@ -34,7 +34,7 @@ const FORMULARIO_VACIO: FormularioUsuario = {
   email: '',
   password: '',
   confirmacion: '',
-  rol: 'Empleado',
+  rol: 'Caja',
 };
 
 /** Valida en el cliente lo evidente para ahorrar un viaje; el backend vuelve a validar todo. */

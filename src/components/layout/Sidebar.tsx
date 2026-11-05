@@ -71,7 +71,7 @@ const modulos: ModuloNav[] = [
     icon: Building2,
     children: [
       { label: 'Proveedores', to: '/proveedores' },
-      { label: 'Cuentas por pagar', to: '/proveedores/cuentas-por-pagar' },
+      { label: 'Pagos caja menor', to: '/proveedores/cuentas-por-pagar' },
     ],
   },
   {

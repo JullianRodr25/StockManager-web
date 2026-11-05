@@ -46,7 +46,7 @@ function construirKpisPrincipales(resumen: DashboardResumen): Kpi[] {
       colorClass: 'text-navy',
     },
     {
-      label: 'Cuentas por pagar por vencer',
+      label: 'Pagos de caja menor por vencer',
       value: String(resumen.cuentasPorPagarPorVencer),
       icon: Clock,
       colorClass: 'text-error-text',

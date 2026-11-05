@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -81,6 +82,9 @@ interface NuevaCuentaForm {
   concepto: string;
   montoTotal: string;
   fechaVencimiento: string;
+  /** Registrar y pagar en el mismo paso: no hay vencimiento, la cuenta queda Pagada. */
+  pagarAhora: boolean;
+  metodoPago: MetodoPago | '';
 }
 
 const formularioVacio: NuevaCuentaForm = {
@@ -88,7 +92,19 @@ const formularioVacio: NuevaCuentaForm = {
   concepto: '',
   montoTotal: '',
   fechaVencimiento: '',
+  pagarAhora: false,
+  metodoPago: '',
 };
+
+const METODOS_PAGO: MetodoPago[] = ['Efectivo', 'Transferencia', 'Tarjeta'];
+
+/** Hoy como AAAA-MM-DD en la zona del navegador (el servidor la reemplaza por el día de Colombia al pagar de una vez). */
+function hoyIso(): string {
+  const ahora = new Date();
+  const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+  const dia = String(ahora.getDate()).padStart(2, '0');
+  return `${ahora.getFullYear()}-${mes}-${dia}`;
+}
 
 export function CuentasPorPagar() {
   const { token } = useAuth();
@@ -138,7 +154,7 @@ export function CuentasPorPagar() {
       const items = filtroEstado === 'vencidas' ? respuesta.data.filter((c) => c.vencida) : respuesta.data;
       setCuentas(items);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudieron cargar las cuentas por pagar.');
+      setError(err instanceof ApiError ? err.message : 'No se pudieron cargar los pagos de caja menor.');
     } finally {
       setCargando(false);
     }
@@ -159,7 +175,7 @@ export function CuentasPorPagar() {
     });
   }
 
-  function actualizarCampoFormulario(campo: keyof NuevaCuentaForm, valor: string) {
+  function actualizarCampoFormulario<K extends keyof NuevaCuentaForm>(campo: K, valor: NuevaCuentaForm[K]) {
     setFormulario((previo) => ({ ...previo, [campo]: valor }));
   }
 
@@ -191,7 +207,11 @@ export function CuentasPorPagar() {
       setErrorFormulario('Ingresa un monto total válido.');
       return;
     }
-    if (!formulario.fechaVencimiento) {
+    if (formulario.pagarAhora && !formulario.metodoPago) {
+      setErrorFormulario('Selecciona con qué método se paga.');
+      return;
+    }
+    if (!formulario.pagarAhora && !formulario.fechaVencimiento) {
       setErrorFormulario('Selecciona la fecha de vencimiento.');
       return;
     }
@@ -203,15 +223,18 @@ export function CuentasPorPagar() {
           proveedorId,
           concepto: formulario.concepto.trim(),
           montoTotal,
-          fechaVencimiento: formulario.fechaVencimiento,
+          fechaVencimiento: formulario.pagarAhora ? hoyIso() : formulario.fechaVencimiento,
+          metodoPagoInmediato: formulario.pagarAhora && formulario.metodoPago ? formulario.metodoPago : undefined,
         },
         token
       );
-      toast.success('Cuenta por pagar registrada correctamente');
+      toast.success(
+        formulario.pagarAhora ? 'Pago registrado correctamente' : 'Pago pendiente registrado correctamente'
+      );
       setDialogNuevaAbierto(false);
       await cargarCuentas();
     } catch (err) {
-      const mensaje = err instanceof ApiError ? err.message : 'No se pudo registrar la cuenta por pagar.';
+      const mensaje = err instanceof ApiError ? err.message : 'No se pudo registrar el pago.';
       setErrorFormulario(mensaje);
       toast.error(mensaje);
     } finally {
@@ -291,13 +314,13 @@ export function CuentasPorPagar() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-heading text-2xl font-semibold text-navy">Cuentas por pagar</h2>
-          <p className="text-sm text-text-muted">Compras a crédito con proveedores y su estado de pago.</p>
+          <h2 className="font-heading text-2xl font-semibold text-navy">Pagos caja menor</h2>
+          <p className="text-sm text-text-muted">Pagos y compras a crédito con proveedores, y su estado.</p>
         </div>
 
         <Button variant="gold" onClick={abrirDialogNueva}>
           <Plus className="h-4 w-4" />
-          Registrar compra a crédito
+          Registrar pago
         </Button>
       </div>
 
@@ -354,7 +377,7 @@ export function CuentasPorPagar() {
               ) : cuentas.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="py-8 text-center text-text-muted">
-                    No hay cuentas por pagar con estos filtros.
+                    No hay pagos de caja menor con estos filtros.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -385,8 +408,10 @@ export function CuentasPorPagar() {
       <Dialog open={dialogNuevaAbierto} onOpenChange={setDialogNuevaAbierto}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Registrar compra a crédito</DialogTitle>
-            <DialogDescription>Crea una nueva cuenta por pagar con un proveedor.</DialogDescription>
+            <DialogTitle>Registrar pago</DialogTitle>
+            <DialogDescription>
+              Déjalo pendiente para pagarlo después, o actívalo para pagarlo de una vez.
+            </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleGuardarCuenta} className="space-y-4">
@@ -433,16 +458,58 @@ export function CuentasPorPagar() {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="fechaVencimiento">Fecha de vencimiento</Label>
-                <Input
-                  id="fechaVencimiento"
-                  type="date"
-                  value={formulario.fechaVencimiento}
-                  onChange={(e) => actualizarCampoFormulario('fechaVencimiento', e.target.value)}
-                  required
+              {!formulario.pagarAhora && (
+                <div className="space-y-2">
+                  <Label htmlFor="fechaVencimiento">Fecha de vencimiento</Label>
+                  <Input
+                    id="fechaVencimiento"
+                    type="date"
+                    value={formulario.fechaVencimiento}
+                    onChange={(e) => actualizarCampoFormulario('fechaVencimiento', e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <label htmlFor="pagarAhora" className="flex cursor-pointer items-center justify-between gap-3 text-sm">
+                <span>
+                  <span className="block font-medium text-navy">Pagar ahora</span>
+                  <span className="block text-xs text-text-muted">Se registra y queda en estado Pagada de inmediato.</span>
+                </span>
+                <Switch
+                  id="pagarAhora"
+                  checked={formulario.pagarAhora}
+                  onCheckedChange={(valor) => actualizarCampoFormulario('pagarAhora', valor)}
                 />
-              </div>
+              </label>
+
+              {formulario.pagarAhora && (
+                <div className="space-y-2">
+                  <Label htmlFor="metodoPagoNueva">Método de pago</Label>
+                  <Select
+                    value={formulario.metodoPago}
+                    onValueChange={(valor) => actualizarCampoFormulario('metodoPago', valor as MetodoPago)}
+                  >
+                    <SelectTrigger id="metodoPagoNueva">
+                      <SelectValue placeholder="Selecciona el método" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {METODOS_PAGO.map((metodo) => (
+                        <SelectItem key={metodo} value={metodo}>
+                          {metodo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formulario.metodoPago === 'Efectivo' && (
+                    <p className="text-xs text-text-muted">
+                      El efectivo sale de la caja: necesitas tener tu caja abierta.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {errorFormulario && (
@@ -456,7 +523,7 @@ export function CuentasPorPagar() {
                 Cancelar
               </Button>
               <Button type="submit" variant="gold" disabled={guardando}>
-                {guardando ? 'Guardando...' : 'Registrar compra'}
+                {guardando ? 'Guardando...' : formulario.pagarAhora ? 'Registrar y pagar' : 'Registrar pendiente'}
               </Button>
             </DialogFooter>
           </form>

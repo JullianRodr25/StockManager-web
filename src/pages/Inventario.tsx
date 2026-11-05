@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react';
-import { Barcode, ChevronDown, Download, Loader2, Pencil, Plus, RotateCcw, Search, Trash2, Upload, X } from 'lucide-react';
+import { Barcode, ChevronDown, Download, Loader2, Pencil, Plus, RotateCcw, Search, Tags, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { descargarArchivo } from '@/lib/descargarArchivo';
 import { ApiError, MENSAJE_ERROR_GENERICO } from '@/services/api';
 import { ResumenAlertasStock } from '@/components/ResumenAlertasStock';
+import { CategoriasDialog } from '@/components/CategoriasDialog';
 import type { FiltroAlertaStock } from '@/components/ResumenAlertasStock';
 import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import { actualizarProducto, ajustarStock, buscarProductoPorCodigoBarras, crearProducto, desactivarProducto, descargarPlantillaProductos, exportarInventario, importarProductos, obtenerAlertasStock, obtenerCategorias, obtenerProductos, reactivarProducto } from '@/services/inventarioService';
@@ -131,6 +132,7 @@ export function Inventario() {
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas');
+  const [dialogCategoriasAbierto, setDialogCategoriasAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [tarifaIvaGeneral, setTarifaIvaGeneral] = useState<number | null>(null);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -225,7 +227,7 @@ export function Inventario() {
       });
   }, [token, productos]);
 
-  useEffect(() => {
+  const recargarCategorias = useCallback(() => {
     obtenerCategorias(token)
       .then(setCategorias)
       .catch(() => {
@@ -233,6 +235,10 @@ export function Inventario() {
         // la tabla de productos puede seguir funcionando sin filtro.
       });
   }, [token]);
+
+  useEffect(() => {
+    recargarCategorias();
+  }, [recargarCategorias]);
 
   useEffect(() => {
     obtenerConfiguracion(token)
@@ -926,6 +932,12 @@ export function Inventario() {
             </DropdownMenu>
               </>
             )}
+            {puedeEditar && (
+              <Button variant="outline" onClick={() => setDialogCategoriasAbierto(true)}>
+                <Tags className="h-4 w-4" />
+                Categorías
+              </Button>
+            )}
             <Button variant="gold" onClick={abrirDialogNuevo}>
               <Plus className="h-4 w-4" />
               Nuevo producto
@@ -1436,6 +1448,12 @@ export function Inventario() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <CategoriasDialog
+        abierto={dialogCategoriasAbierto}
+        onCambiarAbierto={setDialogCategoriasAbierto}
+        onCategoriasCambiadas={recargarCategorias}
+      />
     </div>
   );
 }

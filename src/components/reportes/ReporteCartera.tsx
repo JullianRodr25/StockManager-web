@@ -90,7 +90,7 @@ export function ReporteCartera() {
               Saldos por proveedor
             </TituloSeccion>
             {datos.porPagar.length === 0 ? (
-              <p className="py-4 text-center text-sm text-text-muted">No hay cuentas por pagar pendientes.</p>
+              <p className="py-4 text-center text-sm text-text-muted">No hay pagos de caja menor pendientes.</p>
             ) : (
               <Table>
                 <TableHeader>

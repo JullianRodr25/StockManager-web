@@ -605,7 +605,7 @@ export function Configuracion() {
                   <CardTitle className="text-navy">Notificaciones por WhatsApp</CardTitle>
                   <CardDescription>
                     Número que recibe los avisos administrativos: productos que llegan a su stock
-                    mínimo, pedidos nuevos y cuentas por pagar próximas a vencer. Solo un administrador puede ver y cambiar este dato.
+                    mínimo, pedidos nuevos y pagos de caja menor próximos a vencer. Solo un administrador puede ver y cambiar este dato.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

@@ -13,6 +13,8 @@ export interface CrearCuentaPorPagarRequest {
   concepto: string;
   montoTotal: number;
   fechaVencimiento: string;
+  /** Si viene, la cuenta se paga completa al registrarla y queda Pagada. */
+  metodoPagoInmediato?: MetodoPago;
 }
 
 export interface RegistrarAbonoCuentaPorPagarRequest {

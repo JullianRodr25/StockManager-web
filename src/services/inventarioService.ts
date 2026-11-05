@@ -23,6 +23,21 @@ export async function crearCategoria(nombre: string, token: string | null): Prom
   });
 }
 
+export async function actualizarCategoria(id: number, nombre: string, token: string | null): Promise<Categoria> {
+  return apiRequest<Categoria>(`/api/categorias/${id}`, {
+    method: 'PUT',
+    body: { nombre },
+    token,
+  });
+}
+
+export async function eliminarCategoria(id: number, token: string | null): Promise<void> {
+  return apiRequest<void>(`/api/categorias/${id}`, {
+    method: 'DELETE',
+    token,
+  });
+}
+
 export async function obtenerProductos(
   pagina: number,
   tamanoPagina: number,

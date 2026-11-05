@@ -26,7 +26,7 @@ const TITULOS_POR_RUTA: Record<string, string> = {
   '/pedidos': 'Pedidos',
   '/clientes': 'Clientes',
   '/proveedores': 'Proveedores',
-  '/proveedores/cuentas-por-pagar': 'Cuentas por pagar',
+  '/proveedores/cuentas-por-pagar': 'Pagos caja menor',
   '/nomina': 'Nómina · Quincena',
   '/nomina/trabajadores': 'Nómina · Trabajadores',
   '/nomina/prestamos': 'Nómina · Préstamos',

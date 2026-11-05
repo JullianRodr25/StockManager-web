@@ -80,7 +80,7 @@ const TEXTO_CONFIRMACION: Record<AccionConfirmable, { titulo: string; detalle: s
   cerrar: {
     titulo: '¿Cerrar el período?',
     detalle:
-      'Se descuentan las cuotas de los préstamos, se crea en Cuentas por pagar lo retenido por salud y pensión, y el período ya no se puede modificar. Después podrás abrir el siguiente.',
+      'Se descuentan las cuotas de los préstamos, se crea en Pagos caja menor lo retenido por salud y pensión, y el período ya no se puede modificar. Después podrás abrir el siguiente.',
     boton: 'Cerrar período',
   },
 };
