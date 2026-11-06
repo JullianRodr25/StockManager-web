@@ -252,7 +252,25 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
             )}
 
             <section className="grid gap-2">
-              <h3 className="text-sm font-semibold text-navy">¿Qué devuelve el cliente?</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-navy">¿Qué devuelve el cliente?</h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={enviando}
+                  onClick={() => {
+                    const todas: Record<number, string> = {};
+                    for (const d of detalle.detalles) {
+                      const disponible = d.cantidad - (yaDevuelto.get(d.id) ?? 0);
+                      if (disponible > 0) todas[d.id] = String(disponible);
+                    }
+                    setCantidades(todas);
+                  }}
+                >
+                  Devolver todo
+                </Button>
+              </div>
               <ul className="divide-y divide-border rounded-md border border-border">
                 {detalle.detalles.map((d) => {
                   const disponible = d.cantidad - (yaDevuelto.get(d.id) ?? 0);
@@ -267,6 +285,16 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
                             {d.cantidad - disponible > 0 && ` · ya devuelto ${d.cantidad - disponible}`}
                           </p>
                         </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="shrink-0"
+                          disabled={disponible <= 0 || enviando}
+                          onClick={() => cambiarCantidad(d.id, String(disponible), disponible)}
+                        >
+                          Toda
+                        </Button>
                         <Input
                           type="text"
                           inputMode="numeric"

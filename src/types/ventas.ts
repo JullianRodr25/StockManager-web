@@ -108,6 +108,8 @@ export interface VentaResumenResponse {
   totalAbonado: number;
   /** Valor de lo devuelto en devoluciones/cambios de esta venta; 0 si no tiene. */
   totalDevuelto: number;
+  /** Valor de lo que el cliente se llevó a cambio en esas devoluciones. Neto = total − totalDevuelto + totalCambio. */
+  totalCambio: number;
 }
 
 export interface VentasPaginadasResponse {

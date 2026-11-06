@@ -170,7 +170,14 @@ export function HistorialVentas() {
                   >
                     <TableCell className="text-navy">{formatoFecha(venta.fecha)}</TableCell>
                     <TableCell className="text-navy">{nombreComprador(venta)}</TableCell>
-                    <TableCell className="font-medium text-navy">{formatoMoneda.format(venta.total)}</TableCell>
+                    <TableCell className="font-medium text-navy">
+                      {formatoMoneda.format(venta.total)}
+                      {venta.totalDevuelto > 0 && (
+                        <span className="block text-xs font-normal text-text-muted">
+                          Neto {formatoMoneda.format(venta.total - venta.totalDevuelto + venta.totalCambio)}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-navy">{venta.metodoPago}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">

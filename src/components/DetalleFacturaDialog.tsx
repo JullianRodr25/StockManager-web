@@ -8,6 +8,8 @@ import { AvisoClienteIncompleto } from '@/components/AvisoClienteIncompleto';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { obtenerDocumentoFacturaDeVenta } from '@/services/facturaService';
 import { debeAbrirCajon, imprimirRecibo } from '@/services/impresionService';
+import { obtenerDevolucionesDeVenta } from '@/services/devolucionService';
+import type { DevolucionResponse } from '@/types/devoluciones';
 import type { FacturaDocumento } from '@/types/facturaDocumento';
 import type { VentaResponse } from '@/types/ventas';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +69,7 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
   const [imprimiendoTiquete, setImprimiendoTiquete] = useState(false);
   const [documento, setDocumento] = useState<FacturaDocumento | null>(null);
   const [errorDocumento, setErrorDocumento] = useState<string | null>(null);
+  const [devoluciones, setDevoluciones] = useState<DevolucionResponse[]>([]);
 
   // Todo lo que se imprime (empresa, cliente, IVA por tarifa, pagos, textos legales) llega ya
   // armado del backend: la vista digital, el tiquete y el PDF muestran lo mismo.
@@ -84,6 +87,22 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
     setDocumento(null);
     cargarDocumento();
   }, [open, cargarDocumento]);
+
+  // Devoluciones y cambios de esta venta: la factura original no cambia, pero se muestra debajo lo
+  // que se ajustó y el total que de verdad quedó. Si falla la consulta, simplemente no se muestra.
+  useEffect(() => {
+    if (!open || ventaId === null) return;
+    setDevoluciones([]);
+    let vigente = true;
+    obtenerDevolucionesDeVenta(ventaId, token)
+      .then((lista) => vigente && setDevoluciones(lista))
+      .catch(() => {
+        // Sin el detalle de ajustes la factura sigue siendo válida.
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [open, ventaId, token]);
 
   // Se consulta el nombre de la impresora configurada solo cuando el diálogo se abre, y solo
   // una vez: si no hay impresora configurada, el botón de tiquete físico no se muestra.
@@ -312,6 +331,39 @@ export function DetalleFacturaDialog({ venta, open, onOpenChange }: DetalleFactu
                       </div>
                     </div>
                   </div>
+
+                  {devoluciones.length > 0 && (
+                    <div className="space-y-2 border-t border-border pt-3 text-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                        Ajustes por devolución o cambio
+                      </p>
+                      {devoluciones.map((d) => (
+                        <div key={d.id} className="space-y-0.5">
+                          <p className="text-xs text-text-muted">
+                            {formatoFecha(d.fecha)} · {d.motivo}
+                            {d.requiereNotaCredito && ' · pendiente de nota crédito'}
+                          </p>
+                          {d.detalles.map((l) => (
+                            <div key={l.id} className="flex justify-between gap-3">
+                              <span className="text-navy">
+                                {l.sentido === 'Devuelto' ? 'Devuelve' : 'Se lleva'} {l.cantidad} × {l.nombreProducto}
+                              </span>
+                              <span className="text-navy">
+                                {l.sentido === 'Devuelto' ? '− ' : '+ '}
+                                {formatoMoneda.format(l.subtotal)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      <div className="flex justify-between border-t border-border pt-1.5">
+                        <span className="text-xs uppercase tracking-wide text-text-muted">Total ajustado</span>
+                        <span className="text-lg font-bold text-navy">
+                          {formatoMoneda.format(documento.total + devoluciones.reduce((s, d) => s + d.diferencia, 0))}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {(documento.textoLegal || documento.politicaCambios) && (
                     <div className="space-y-1 border-t border-border pt-3 text-xs text-text-muted">
