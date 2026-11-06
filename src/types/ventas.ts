@@ -106,6 +106,8 @@ export interface VentaResumenResponse {
   numeroFactura: string;
   /** Suma de abonos registrados (cuentas abiertas); 0 si no tiene. */
   totalAbonado: number;
+  /** Valor de lo devuelto en devoluciones/cambios de esta venta; 0 si no tiene. */
+  totalDevuelto: number;
 }
 
 export interface VentasPaginadasResponse {

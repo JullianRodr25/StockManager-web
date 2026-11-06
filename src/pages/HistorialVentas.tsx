@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Eye } from 'lucide-react';
+import { Eye, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -7,6 +7,7 @@ import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import { obtenerVentaPorId, obtenerVentas } from '@/services/ventaService';
 import type { VentaResponse, VentaResumenResponse } from '@/types/ventas';
 import { BadgeEstado, DetalleFacturaDialog, formatoFecha, formatoMoneda, nombreComprador } from '@/components/DetalleFacturaDialog';
+import { DevolucionDialog } from '@/components/DevolucionDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,7 @@ export function HistorialVentas() {
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState<VentaResponse | null>(null);
+  const [ventaADevolver, setVentaADevolver] = useState<VentaResumenResponse | null>(null);
 
   const cargarVentas = useCallback(
     async (paginaSolicitada: number) => {
@@ -171,7 +173,17 @@ export function HistorialVentas() {
                     <TableCell className="font-medium text-navy">{formatoMoneda.format(venta.total)}</TableCell>
                     <TableCell className="text-navy">{venta.metodoPago}</TableCell>
                     <TableCell>
-                      <BadgeEstado estado={venta.estado} />
+                      <div className="flex flex-wrap items-center gap-1">
+                        <BadgeEstado estado={venta.estado} />
+                        {venta.totalDevuelto > 0 && (
+                          <span
+                            className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-medium text-navy"
+                            title={`Devuelto: ${formatoMoneda.format(venta.totalDevuelto)}`}
+                          >
+                            Con devolución
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-text-muted">
                       <div className="flex items-center justify-between gap-2">
@@ -194,6 +206,21 @@ export function HistorialVentas() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+                        {venta.estado === 'Pagada' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            aria-label={`Devolver o cambiar la venta ${venta.numeroFactura || venta.id}`}
+                            title="Devolver o cambiar"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVentaADevolver(venta);
+                            }}
+                          >
+                            <Undo2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -224,6 +251,12 @@ export function HistorialVentas() {
       </div>
 
       <DetalleFacturaDialog venta={ventaSeleccionada} open={dialogAbierto} onOpenChange={cerrarDetalle} />
+
+      <DevolucionDialog
+        venta={ventaADevolver}
+        onCerrar={() => setVentaADevolver(null)}
+        onRegistrada={() => cargarVentas(pagina)}
+      />
     </div>
   );
 }
