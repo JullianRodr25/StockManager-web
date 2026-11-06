@@ -1,6 +1,7 @@
 import { apiRequest } from './api';
 import type {
   AbonoResponse,
+  CambiarMetodoPagoRequest,
   FiltrosVentas,
   LineaVentaRequest,
   ProductoVentaReciente,
@@ -121,4 +122,16 @@ export async function obtenerProductosRecientes(
   limite = 10
 ): Promise<ProductoVentaReciente[]> {
   return apiRequest<ProductoVentaReciente[]>(`/api/ventas/productos-recientes?limite=${limite}`, { token });
+}
+
+export async function cambiarMetodoPago(
+  ventaId: number,
+  data: CambiarMetodoPagoRequest,
+  token: string | null
+): Promise<VentaResponse> {
+  return apiRequest<VentaResponse>(`/api/ventas/${ventaId}/metodo-pago`, {
+    method: 'PUT',
+    body: data,
+    token,
+  });
 }

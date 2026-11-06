@@ -28,6 +28,13 @@ export interface DetallePagoRequest {
   monto: number;
 }
 
+// Corrección del método de pago de una venta ya pagada (mismas reglas que al registrarla).
+export interface CambiarMetodoPagoRequest {
+  metodoPago: MetodoPagoVenta;
+  montoRecibido?: number | null;
+  detallesPago?: DetallePagoRequest[];
+}
+
 export interface DetallePagoResponse {
   metodoPago: string;
   monto: number;

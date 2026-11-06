@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Eye, Undo2 } from 'lucide-react';
+import { CreditCard, Eye, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
@@ -7,7 +7,9 @@ import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
 import { obtenerVentaPorId, obtenerVentas } from '@/services/ventaService';
 import type { VentaResponse, VentaResumenResponse } from '@/types/ventas';
 import { BadgeEstado, DetalleFacturaDialog, formatoFecha, formatoMoneda, nombreComprador } from '@/components/DetalleFacturaDialog';
+import { CambiarMetodoPagoDialog } from '@/components/CambiarMetodoPagoDialog';
 import { DevolucionDialog } from '@/components/DevolucionDialog';
+import { esHoyEnColombia } from '@/utils/fechasColombia';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -47,6 +49,7 @@ export function HistorialVentas() {
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState<VentaResponse | null>(null);
   const [ventaADevolver, setVentaADevolver] = useState<VentaResumenResponse | null>(null);
+  const [ventaCambioMetodo, setVentaCambioMetodo] = useState<VentaResumenResponse | null>(null);
 
   const cargarVentas = useCallback(
     async (paginaSolicitada: number) => {
@@ -213,6 +216,23 @@ export function HistorialVentas() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+                        {/* Solo el mismo día de la venta y si no se pagó con abonos; el servidor
+                            valida de nuevo (y además bloquea si el turno ya cerró). */}
+                        {venta.estado === 'Pagada' && venta.totalAbonado === 0 && esHoyEnColombia(venta.fecha) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            aria-label={`Cambiar método de pago de la venta ${venta.numeroFactura || venta.id}`}
+                            title="Cambiar método de pago"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVentaCambioMetodo(venta);
+                            }}
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
+                        )}
                         {venta.estado === 'Pagada' && (
                           <Button
                             variant="ghost"
@@ -258,6 +278,12 @@ export function HistorialVentas() {
       </div>
 
       <DetalleFacturaDialog venta={ventaSeleccionada} open={dialogAbierto} onOpenChange={cerrarDetalle} />
+
+      <CambiarMetodoPagoDialog
+        venta={ventaCambioMetodo}
+        onCerrar={() => setVentaCambioMetodo(null)}
+        onCambiado={() => cargarVentas(pagina)}
+      />
 
       <DevolucionDialog
         venta={ventaADevolver}
