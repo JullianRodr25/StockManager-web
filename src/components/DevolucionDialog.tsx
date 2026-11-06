@@ -256,7 +256,7 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
                 <h3 className="text-sm font-semibold text-navy">¿Qué devuelve el cliente?</h3>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   disabled={enviando}
                   onClick={() => {
@@ -285,26 +285,29 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
                             {d.cantidad - disponible > 0 && ` · ya devuelto ${d.cantidad - disponible}`}
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="shrink-0"
-                          disabled={disponible <= 0 || enviando}
-                          onClick={() => cambiarCantidad(d.id, String(disponible), disponible)}
-                        >
-                          Toda
-                        </Button>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          className="w-20 shrink-0 text-center"
-                          aria-label={`Cantidad a devolver de ${d.productoNombre}`}
-                          placeholder={disponible > 0 ? `0 – ${disponible}` : '—'}
-                          disabled={disponible <= 0 || enviando}
-                          value={cantidades[d.id] ?? ''}
-                          onChange={(e) => cambiarCantidad(d.id, e.target.value, disponible)}
-                        />
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9"
+                            aria-label={`Devolver todas las unidades de ${d.productoNombre}`}
+                            disabled={disponible <= 0 || enviando}
+                            onClick={() => cambiarCantidad(d.id, String(disponible), disponible)}
+                          >
+                            Todo
+                          </Button>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            className="h-9 w-20 text-center"
+                            aria-label={`Cantidad a devolver de ${d.productoNombre}`}
+                            placeholder={disponible > 0 ? `0 – ${disponible}` : '—'}
+                            disabled={disponible <= 0 || enviando}
+                            value={cantidades[d.id] ?? ''}
+                            onChange={(e) => cambiarCantidad(d.id, e.target.value, disponible)}
+                          />
+                        </div>
                       </div>
                       {cantidadActual > 0 && (
                         <label className="flex cursor-pointer items-center gap-2 text-xs text-text-muted">
