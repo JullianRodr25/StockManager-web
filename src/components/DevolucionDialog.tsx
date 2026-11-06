@@ -10,6 +10,7 @@ import { obtenerVentaPorId } from '@/services/ventaService';
 import type { DevolucionResponse } from '@/types/devoluciones';
 import type { Producto } from '@/types/inventario';
 import type { MetodoPago, VentaResponse, VentaResumenResponse } from '@/types/ventas';
+import { BuscadorProductos } from '@/components/BuscadorProductos';
 import { formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,9 +20,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 const METODOS: MetodoPago[] = ['Efectivo', 'Transferencia', 'Tarjeta'];
-const MIN_LETRAS_BUSQUEDA = 2;
-const RETRASO_BUSQUEDA_MS = 300;
-const MAX_RESULTADOS = 6;
+const PRODUCTOS_INICIALES = 40;
 
 interface LineaCambio {
   producto: Producto;
@@ -54,9 +53,10 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
   const [noReintegrar, setNoReintegrar] = useState<Record<number, boolean>>({});
 
   const [lineasCambio, setLineasCambio] = useState<LineaCambio[]>([]);
-  const [busqueda, setBusqueda] = useState('');
-  const [resultados, setResultados] = useState<Producto[]>([]);
-  const [buscando, setBuscando] = useState(false);
+  // Carga inicial del catálogo para el buscador (igual que Ventas); al escribir, el buscador
+  // consulta al servidor por nombre en todo el inventario.
+  const [catalogo, setCatalogo] = useState<Producto[]>([]);
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(false);
 
   const [motivo, setMotivo] = useState('');
   const [metodoPago, setMetodoPago] = useState<MetodoPago | ''>('');
@@ -74,8 +74,6 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
     setCantidades({});
     setNoReintegrar({});
     setLineasCambio([]);
-    setBusqueda('');
-    setResultados([]);
     setMotivo('');
     setMetodoPago('');
     setErrorEnvio(null);
@@ -99,33 +97,24 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
     };
   }, [ventaId, token]);
 
-  // Búsqueda del producto de cambio, con espera a que termine de escribir.
   useEffect(() => {
-    const texto = busqueda.trim();
-    if (texto.length < MIN_LETRAS_BUSQUEDA) {
-      setResultados([]);
-      return;
-    }
+    if (ventaId === null) return;
     let vigente = true;
-    const temporizador = setTimeout(() => {
-      setBuscando(true);
-      obtenerProductos(1, 20, token, undefined, texto)
-        .then((respuesta) => {
-          if (!vigente) return;
-          setResultados(respuesta.data.filter((p) => p.activo && p.stockActual > 0).slice(0, MAX_RESULTADOS));
-        })
-        .catch(() => {
-          if (vigente) setResultados([]);
-        })
-        .finally(() => {
-          if (vigente) setBuscando(false);
-        });
-    }, RETRASO_BUSQUEDA_MS);
+    setCargandoCatalogo(true);
+    obtenerProductos(1, PRODUCTOS_INICIALES, token)
+      .then((respuesta) => {
+        if (vigente) setCatalogo(respuesta.data);
+      })
+      .catch(() => {
+        if (vigente) setCatalogo([]);
+      })
+      .finally(() => {
+        if (vigente) setCargandoCatalogo(false);
+      });
     return () => {
       vigente = false;
-      clearTimeout(temporizador);
     };
-  }, [busqueda, token]);
+  }, [ventaId, token]);
 
   // Unidades ya devueltas de cada línea, sumando todas las devoluciones anteriores.
   const yaDevuelto = useMemo(() => {
@@ -168,8 +157,6 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
       }
       return [...previo, { producto, cantidad: 1 }];
     });
-    setBusqueda('');
-    setResultados([]);
   }
 
   function cambiarCantidadCambio(productoId: number, texto: string) {
@@ -328,35 +315,17 @@ export function DevolucionDialog({ venta, onCerrar, onRegistrada }: DevolucionDi
 
             <section className="grid gap-2">
               <h3 className="text-sm font-semibold text-navy">Se lleva a cambio (opcional)</h3>
-              <div className="relative">
-                <Input
-                  type="search"
-                  aria-label="Buscar producto de cambio"
-                  placeholder="Buscar producto por nombre..."
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  disabled={enviando}
-                />
-                {(buscando || resultados.length > 0) && (
-                  <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-border bg-card shadow-md">
-                    {buscando && <li className="px-3 py-2 text-xs text-text-muted">Buscando...</li>}
-                    {resultados.map((p) => (
-                      <li key={p.id}>
-                        <button
-                          type="button"
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-background"
-                          onClick={() => agregarACambio(p)}
-                        >
-                          <span className="truncate text-navy">{p.nombre}</span>
-                          <span className="shrink-0 text-xs text-text-muted">
-                            {formatoMoneda.format(p.precio)} · {p.stockActual} disp.
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <BuscadorProductos
+                variante="integrado"
+                productos={catalogo}
+                cargandoProductos={cargandoCatalogo}
+                errorProductos={null}
+                token={token}
+                onSeleccionarProducto={agregarACambio}
+                disabled={enviando}
+                placeholder="Buscar producto por nombre o escanear código..."
+                autoFocus={false}
+              />
 
               {lineasCambio.length > 0 && (
                 <ul className="divide-y divide-border rounded-md border border-border">

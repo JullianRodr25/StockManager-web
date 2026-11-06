@@ -30,6 +30,12 @@ interface BuscadorProductosProps {
   // al carrito con un clic sin tener que escribir nada. Opcional: si no se pasa, esta sección
   // simplemente no aparece (así FiadoPage, que reutiliza este mismo buscador, no se ve afectado).
   productosRecientes?: Producto[];
+  // "tarjeta" (por defecto): con su propio Card y encabezado, como en Ventas. "integrado": solo
+  // el campo y la lista, para incrustarlo dentro de otro formulario (ej. el diálogo de
+  // devoluciones) con exactamente el mismo comportamiento de búsqueda.
+  variante?: 'tarjeta' | 'integrado';
+  placeholder?: string;
+  autoFocus?: boolean;
 }
 
 export function BuscadorProductos({
@@ -42,6 +48,9 @@ export function BuscadorProductos({
   titulo = 'Buscar producto',
   descripcion = 'Escanea el código de barras o escribe el nombre.',
   productosRecientes = [],
+  variante = 'tarjeta',
+  placeholder = 'Escanea el código o escribe el nombre del producto...',
+  autoFocus = true,
 }: BuscadorProductosProps) {
   const [terminoBusqueda, setTerminoBusqueda] = useState('');
   const [buscandoCodigo, setBuscandoCodigo] = useState(false);
@@ -207,13 +216,8 @@ export function BuscadorProductos({
     setResaltado(-1);
   }
 
-  return (
-    <Card className="border-border">
-      <CardHeader>
-        <CardTitle className="text-navy">{titulo}</CardTitle>
-        <CardDescription>{descripcion}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2">
+  const contenido = (
+    <>
         <div className="relative">
           <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
           <Input
@@ -231,10 +235,10 @@ export function BuscadorProductos({
             // onFocus: se reabre la lista aquí.
             onClick={() => setMostrarDropdown(true)}
             onBlur={handleDesenfocarBusqueda}
-            placeholder="Escanea el código o escribe el nombre del producto..."
+            placeholder={placeholder}
             disabled={bloqueado}
             className="pl-9"
-            autoFocus
+            autoFocus={autoFocus}
           />
         </div>
 
@@ -318,7 +322,18 @@ export function BuscadorProductos({
             {errorProductos}
           </div>
         )}
-      </CardContent>
+    </>
+  );
+
+  if (variante === 'integrado') return <div className="space-y-2">{contenido}</div>;
+
+  return (
+    <Card className="border-border">
+      <CardHeader>
+        <CardTitle className="text-navy">{titulo}</CardTitle>
+        <CardDescription>{descripcion}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">{contenido}</CardContent>
     </Card>
   );
 }
