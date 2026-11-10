@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { BotonAudioFerreteria } from './BotonAudioFerreteria';
 import { NotificacionesBell } from './NotificacionesBell';
 import { esOperativo, etiquetaDeRol } from '@/utils/permisos';
 import {
@@ -91,6 +92,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         >
           {theme === 'dark' ? <Sun className="h-5 w-5 text-foreground" /> : <Moon className="h-5 w-5 text-foreground" />}
         </Button>
+
+        <BotonAudioFerreteria />
 
         {/* Las notificaciones internas son del personal operativo; el rol de consulta no las recibe. */}
         {esOperativo(usuario?.rol) && <NotificacionesBell />}
