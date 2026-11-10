@@ -63,6 +63,9 @@ export interface RegistrarVentaRequest {
   razonSocialFiscal?: string | null;
   direccionFiscal?: string | null;
   emailFacturacion?: string | null;
+  // Cotización de origen ("traer cotización"): el backend respeta sus precios en los productos
+  // que siguen en la venta y la deja convertida y ligada a ella.
+  cotizacionId?: number | null;
 }
 
 export interface DetalleVentaResponse {

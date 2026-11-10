@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Lock, RefreshCw, ShoppingCart, Trash2 } from 'lucide-react';
+import { FileText, Loader2, Lock, RefreshCw, ShoppingCart, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBorradorVenta } from '@/context/BorradorVentaContext';
 import { useAuth } from '@/context/AuthContext';
@@ -10,15 +10,17 @@ import { ApiError } from '@/services/api';
 import { loginEmpleado } from '@/services/authService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon } from '@/services/impresionService';
-import { obtenerProductos } from '@/services/inventarioService';
+import { obtenerProductoPorId, obtenerProductos } from '@/services/inventarioService';
 import { obtenerProductosRecientes, registrarVenta } from '@/services/ventaService';
-import { buscarClientes, crearCliente } from '@/services/clienteService';
+import { buscarClientes, crearCliente, obtenerClientePorId } from '@/services/clienteService';
 import { useSincronizacionStock } from '@/hooks/useSincronizacionStock';
 import type { Producto } from '@/types/inventario';
+import type { Cotizacion } from '@/types/cotizaciones';
 import type { MetodoPago, MetodoPagoVenta, RegistrarVentaRequest, VentaResponse } from '@/types/ventas';
 import type { Cliente, TipoDocumentoFiscal } from '@/types/clientes';
 import { BuscadorProductos } from '@/components/BuscadorProductos';
 import { DetalleFacturaDialog, formatoMoneda } from '@/components/DetalleFacturaDialog';
+import { TraerCotizacionDialog } from '@/components/TraerCotizacionDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -131,6 +133,8 @@ interface LineaCarrito {
   productoId: number;
   cantidad: string;
   stockActual: number;
+  /** Precio ofrecido en la cotización de origen; si existe, manda sobre el de lista. */
+  precioCotizado?: number;
 }
 
 const estadoInicialComprador = {
@@ -157,6 +161,10 @@ export function Ventas() {
   const [carrito, setCarrito] = useBorradorVenta<LineaCarrito[]>('carrito', []);
 
   const [dialogFinalizarAbierto, setDialogFinalizarAbierto] = useState(false);
+  // Cotización de la que viene esta venta (si se trajo con "Traer cotización"). Es borrador igual
+  // que el carrito, para no perder el vínculo si el cajero navega y vuelve.
+  const [cotizacionOrigen, setCotizacionOrigen] = useBorradorVenta<{ id: number; numero: string } | null>('cotizacionOrigen', null);
+  const [dialogCotizacionAbierto, setDialogCotizacionAbierto] = useState(false);
   const [modoComprador, setModoComprador] = useBorradorVenta<ModoComprador>('modoComprador', estadoInicialComprador.modoComprador);
   const [clienteId, setClienteId] = useBorradorVenta('clienteId', estadoInicialComprador.clienteId);
   const [nombreComprador, setNombreComprador] = useBorradorVenta('nombreComprador', estadoInicialComprador.nombreComprador);
@@ -438,8 +446,9 @@ export function Ventas() {
         const producto = productosPorId.get(linea.productoId);
         const cantidad = Number(linea.cantidad);
         const cantidadInvalida = !Number.isFinite(cantidad) || cantidad < 1;
-        const subtotal = producto && !cantidadInvalida ? producto.precio * cantidad : 0;
-        return { ...linea, producto, cantidadInvalida, subtotal };
+        const precioUnitario = linea.precioCotizado ?? producto?.precio ?? 0;
+        const subtotal = producto && !cantidadInvalida ? precioUnitario * cantidad : 0;
+        return { ...linea, producto, cantidadInvalida, subtotal, precioUnitario };
       }),
     [carrito, productosPorId]
   );
@@ -536,6 +545,71 @@ export function Ventas() {
     setCarrito((actual) => actual.filter((linea) => linea.productoId !== productoId));
   }
 
+  /**
+   * Precarga la venta con una cotización: líneas (con su precio cotizado), cliente y vínculo.
+   * Los datos de cada producto (stock, precio de lista) se leen frescos del servidor; la
+   * cantidad se limita al stock de hoy y se avisa de lo que no se pudo traer.
+   */
+  async function traerCotizacion(cotizacion: Cotizacion) {
+    const productosTraidos = await Promise.all(
+      cotizacion.lineas.map((l) => obtenerProductoPorId(l.productoId, token).catch(() => null))
+    );
+
+    const lineas: LineaCarrito[] = [];
+    const avisos: string[] = [];
+    cotizacion.lineas.forEach((l, i) => {
+      const producto = productosTraidos[i];
+      if (!producto || !producto.activo || producto.stockActual <= 0) {
+        avisos.push(`${l.productoNombre}: sin stock o inactivo, no se agregó`);
+        return;
+      }
+      const cantidad = Math.min(l.cantidad, producto.stockActual);
+      if (cantidad < l.cantidad) avisos.push(`${l.productoNombre}: solo hay ${producto.stockActual} de ${l.cantidad}`);
+      lineas.push({
+        productoId: producto.id,
+        cantidad: String(cantidad),
+        stockActual: producto.stockActual,
+        precioCotizado: l.precioUnitario,
+      });
+    });
+
+    if (lineas.length === 0) {
+      toast.error('Ningún producto de la cotización tiene stock disponible.');
+      return;
+    }
+
+    let cliente: Cliente | null = null;
+    if (cotizacion.clienteId) {
+      cliente = await obtenerClientePorId(cotizacion.clienteId, token).catch(() => null);
+    }
+
+    reiniciarVenta();
+    setProductos((actuales) => {
+      const nuevos = productosTraidos.filter((p): p is Producto => p != null && !actuales.some((a) => a.id === p.id));
+      return [...actuales, ...nuevos];
+    });
+    setCarrito(lineas);
+    setCotizacionOrigen({ id: cotizacion.id, numero: cotizacion.numero });
+    if (cliente) {
+      setModoComprador('registrado');
+      setClienteId(String(cliente.id));
+      setClienteSeleccionado(cliente);
+    } else {
+      setNombreComprador(cotizacion.nombreCliente ?? '');
+      setTelefonoComprador(cotizacion.telefonoCliente ?? '');
+      setEmailComprador(cotizacion.emailCliente ?? '');
+    }
+
+    toast.success(`${cotizacion.numero} cargada en la venta`);
+    if (avisos.length > 0) toast.warning('Revisa la cotización', { description: avisos.join(' · ') });
+  }
+
+  function desvincularCotizacion() {
+    // Pasa a precios de lista y la cotización sigue vigente.
+    setCotizacionOrigen(null);
+    setCarrito((actual) => actual.map(({ precioCotizado: _omitido, ...resto }) => resto));
+  }
+
   function abrirDialogFinalizar() {
     setErrorFormulario(null);
     setConflictoStock(null);
@@ -544,6 +618,7 @@ export function Ventas() {
 
   function reiniciarVenta() {
     setCarrito([]);
+    setCotizacionOrigen(null);
     setModoComprador(estadoInicialComprador.modoComprador);
     setClienteId(estadoInicialComprador.clienteId);
     setNombreComprador(estadoInicialComprador.nombreComprador);
@@ -698,6 +773,7 @@ export function Ventas() {
         productoId: linea.productoId,
         cantidad: Number(linea.cantidad),
       })),
+      ...(cotizacionOrigen ? { cotizacionId: cotizacionOrigen.id } : {}),
       ...(requiereFacturaElectronica
         ? {
             requiereFacturaElectronica: true,
@@ -767,6 +843,11 @@ export function Ventas() {
               <CardTitle className="text-navy">Venta actual</CardTitle>
               <CardDescription>Productos agregados a esta venta.</CardDescription>
             </div>
+            <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setDialogCotizacionAbierto(true)}>
+              <FileText className="h-4 w-4" />
+              Traer cotización
+            </Button>
             {nombreImpresora && (
               <Button
                 type="button"
@@ -783,8 +864,19 @@ export function Ventas() {
                 Abrir caja
               </Button>
             )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {cotizacionOrigen && (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-gold/40 bg-gold/10 px-3 py-2 text-sm text-navy">
+                <span>
+                  Cotización <strong>{cotizacionOrigen.numero}</strong>: se respetan sus precios. Al cobrar queda convertida.
+                </span>
+                <Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label="Desvincular cotización" onClick={desvincularCotizacion}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             {carritoVacio ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center text-text-muted">
                 <ShoppingCart className="h-8 w-8" />
@@ -808,7 +900,7 @@ export function Ventas() {
                         <TableRow key={linea.productoId}>
                           <TableCell className="text-navy">{linea.producto?.nombre ?? '—'}</TableCell>
                           <TableCell className="text-text-muted">
-                            {linea.producto ? formatoMoneda.format(linea.producto.precio) : '—'}
+                            {linea.producto ? formatoMoneda.format(linea.precioUnitario) : '—'}
                           </TableCell>
                           <TableCell>
                             <Input
@@ -1391,6 +1483,12 @@ export function Ventas() {
       </Dialog>
 
       <DetalleFacturaDialog venta={ventaRecienCreada} open={facturaAbierta} onOpenChange={setFacturaAbierta} />
+      <TraerCotizacionDialog
+        open={dialogCotizacionAbierto}
+        reemplazaVentaActual={!carritoVacio}
+        onOpenChange={setDialogCotizacionAbierto}
+        onTraer={(c) => void traerCotizacion(c)}
+      />
     </div>
   );
 }

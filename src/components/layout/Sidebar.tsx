@@ -13,6 +13,7 @@ import {
   Tags,
   Wallet,
   Briefcase,
+  FileText,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useBorradorVenta } from '@/context/BorradorVentaContext';
@@ -62,6 +63,7 @@ const modulos: ModuloNav[] = [
       { label: 'Historial de ventas', to: '/ventas/historial' },
     ],
   },
+  { label: 'Cotizaciones', to: '/cotizaciones', icon: FileText },
   { label: 'Caja', to: '/caja', icon: Wallet },
   { label: 'Pedidos', to: '/pedidos', icon: Truck },
   { label: 'Clientes', to: '/clientes', icon: Users },

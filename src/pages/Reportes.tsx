@@ -1,8 +1,10 @@
 import { useSearchParams } from 'react-router-dom';
-import { Banknote, BarChart3, Boxes, PackageSearch } from 'lucide-react';
+import { Banknote, BarChart3, Boxes, FileText, HandCoins, PackageSearch } from 'lucide-react';
 import { NavegacionConfiguracion } from '@/components/NavegacionConfiguracion';
 import type { SeccionConfiguracion } from '@/components/NavegacionConfiguracion';
+import { ReporteRetirosCaja } from '@/components/caja/ReporteRetirosCaja';
 import { ReporteCartera } from '@/components/reportes/ReporteCartera';
+import { ReporteCotizaciones } from '@/components/reportes/ReporteCotizaciones';
 import { ReporteInventario } from '@/components/reportes/ReporteInventario';
 import { ReporteProductos } from '@/components/reportes/ReporteProductos';
 import { ReporteVentas } from '@/components/reportes/ReporteVentas';
@@ -14,6 +16,8 @@ const INFORMES: SeccionConfiguracion[] = [
   { id: 'productos', titulo: 'Productos vendidos', descripcion: 'Lo que más ingresa y su utilidad', icono: PackageSearch },
   { id: 'inventario', titulo: 'Inventario', descripcion: 'Valor del stock y qué reponer', icono: Boxes },
   { id: 'cartera', titulo: 'Cartera', descripcion: 'Por cobrar a clientes y por pagar', icono: Banknote },
+  { id: 'retiros', titulo: 'Retiros de caja', descripcion: 'Efectivo retirado por día y por retiro', icono: HandCoins },
+  { id: 'cotizaciones', titulo: 'Cotizaciones', descripcion: 'Cotizado, convertido y tasa de conversión', icono: FileText },
 ];
 
 export function Reportes() {
@@ -40,6 +44,10 @@ export function Reportes() {
           {activo === 'productos' && <ReporteProductos />}
           {activo === 'inventario' && <ReporteInventario />}
           {activo === 'cartera' && <ReporteCartera />}
+          {activo === 'retiros' && (
+            <ReporteRetirosCaja esAdmin={false} turnosAbiertos={[]} version={0} onCambio={() => {}} />
+          )}
+          {activo === 'cotizaciones' && <ReporteCotizaciones />}
         </div>
       </div>
     </div>

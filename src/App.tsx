@@ -26,6 +26,7 @@ import { Clientes } from './pages/Clientes';
 import { Proveedores } from './pages/Proveedores';
 import { CuentasPorPagar } from './pages/CuentasPorPagar';
 import { Caja } from './pages/Caja';
+import { Cotizaciones } from './pages/Cotizaciones';
 import { Toaster } from '@/components/ui/sonner';
 import { ROLES_OPERATIVOS } from './utils/permisos';
 
@@ -72,6 +73,7 @@ function App() {
                     <Route path="/ventas/fiado" element={<FiadoPage />} />
                     <Route path="/ventas/historial" element={<HistorialVentas />} />
                     <Route path="/caja" element={<Caja />} />
+                    <Route path="/cotizaciones" element={<Cotizaciones />} />
                     <Route path="/pedidos" element={<Pedidos />} />
                     <Route path="/clientes" element={<Clientes />} />
                     <Route path="/proveedores" element={<Proveedores />} />
