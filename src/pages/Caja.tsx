@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, Loader2, Lock, Printer, Unlock, Wallet } from 'lucide-react';
+import { Banknote, Eye, Loader2, Lock, Printer, Unlock, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useCaja } from '@/context/CajaContext';
@@ -18,6 +18,8 @@ import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon, imprimirCierreCaja } from '@/services/impresionService';
 import { formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { FormularioCierre } from '@/components/caja/FormularioCierre';
+import { ReporteRetirosCaja } from '@/components/caja/ReporteRetirosCaja';
+import { RetirarEfectivoDialog } from '@/components/caja/RetirarEfectivoDialog';
 import { ResumenCierre, ResumenTurno } from '@/components/caja/ResumenTurno';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -70,6 +72,11 @@ export function Caja() {
 
   // Cierre forzado por un Admin sobre el turno de otro empleado
   const [turnoParaForzar, setTurnoParaForzar] = useState<TurnoCaja | null>(null);
+
+  // Retiros parciales de efectivo: el diálogo y un contador para que el reporte se vuelva a
+  // consultar cuando se registra o anula uno.
+  const [retirando, setRetirando] = useState(false);
+  const [versionRetiros, setVersionRetiros] = useState(0);
   const [forzando, setForzando] = useState(false);
   const [errorForzar, setErrorForzar] = useState<string | null>(null);
 
@@ -278,9 +285,15 @@ export function Caja() {
                     </p>
                   </div>
                 )}
-                <Button type="button" variant="gold" onClick={() => setCerrando(true)}>
-                  Cerrar caja
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={() => setRetirando(true)}>
+                    <Banknote className="mr-2 h-4 w-4" />
+                    Retirar efectivo
+                  </Button>
+                  <Button type="button" variant="gold" onClick={() => setCerrando(true)}>
+                    Cerrar caja
+                  </Button>
+                </div>
               </>
             )}
           </CardContent>
@@ -496,6 +509,26 @@ export function Caja() {
           )}
         </CardContent>
       </Card>
+
+      <ReporteRetirosCaja
+        esAdmin={esAdmin}
+        turnosAbiertos={historial.filter((t) => t.estado === 'Abierto').map((t) => t.id)}
+        version={versionRetiros}
+        onCambio={() => {
+          setVersionRetiros((v) => v + 1);
+          refrescar();
+        }}
+      />
+
+      <RetirarEfectivoDialog
+        open={retirando}
+        turno={turno}
+        onOpenChange={setRetirando}
+        onRegistrado={() => {
+          setVersionRetiros((v) => v + 1);
+          refrescar();
+        }}
+      />
 
       <Dialog open={detalle !== null} onOpenChange={(abierto) => !abierto && setDetalle(null)}>
         <DialogContent className="max-w-md">

@@ -3,6 +3,8 @@ import type {
   AbrirTurnoRequest,
   AperturaCaja,
   CerrarTurnoRequest,
+  ReporteRetiros,
+  RetiroCaja,
   TurnoCaja,
   TurnosCajaPaginadosResponse,
 } from '../types/caja';
@@ -50,4 +52,23 @@ export async function obtenerHistorialTurnos(
 ): Promise<TurnosCajaPaginadosResponse> {
   const params = new URLSearchParams({ pagina: String(pagina), tamanoPagina: String(tamanoPagina) });
   return apiRequest<TurnosCajaPaginadosResponse>(`/api/caja?${params.toString()}`, { token });
+}
+
+/** Saca efectivo de la caja del turno abierto (por ejemplo lo vendido, dejando solo la base). */
+export async function registrarRetiro(monto: number, token: string | null): Promise<RetiroCaja> {
+  return apiRequest<RetiroCaja>('/api/caja/retiros', { method: 'POST', body: { monto }, token });
+}
+
+/** Anula un retiro; solo Admin y solo mientras el turno sigue abierto. */
+export async function anularRetiro(id: number, token: string | null): Promise<RetiroCaja> {
+  return apiRequest<RetiroCaja>(`/api/caja/retiros/${id}/anular`, { method: 'POST', token });
+}
+
+export async function obtenerReporteRetiros(
+  desde: string,
+  hasta: string,
+  token: string | null
+): Promise<ReporteRetiros> {
+  const params = new URLSearchParams({ desde, hasta });
+  return apiRequest<ReporteRetiros>(`/api/caja/retiros?${params.toString()}`, { token });
 }

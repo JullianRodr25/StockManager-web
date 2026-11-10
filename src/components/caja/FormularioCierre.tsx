@@ -66,6 +66,10 @@ export function FormularioCierre({ turno, enviando, error, onConfirmar, onCancel
         </div>
       )}
 
+      <p className="text-xs text-text-muted">
+        Cuenta solo el efectivo que queda en la caja. Si ya sacaste dinero, registra ese retiro antes de cerrar.
+      </p>
+
       {!turno.esperadoVisible && (
         <p className="text-xs text-text-muted">
           Conteo a ciegas: el esperado y la diferencia se muestran al cerrar la caja.

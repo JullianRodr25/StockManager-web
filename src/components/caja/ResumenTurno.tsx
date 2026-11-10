@@ -30,6 +30,9 @@ export function ResumenTurno({ turno }: { turno: TurnoCaja }) {
           {totales.pagosNominaEfectivo > 0 && (
             <Fila etiqueta="− Pagos de nómina" valor={formatoMoneda.format(totales.pagosNominaEfectivo)} />
           )}
+          {totales.retirosEfectivo > 0 && (
+            <Fila etiqueta="− Retiros de efectivo" valor={formatoMoneda.format(totales.retirosEfectivo)} />
+          )}
           {turno.efectivoEsperado !== null && (
             <div className="border-t border-border pt-2">
               <Fila etiqueta="Esperado en caja" valor={formatoMoneda.format(turno.efectivoEsperado)} fuerte />

@@ -7,6 +7,8 @@ export interface TotalesCaja {
   abonosFiadoEfectivo: number;
   pagosProveedorEfectivo: number;
   pagosNominaEfectivo: number;
+  /** Efectivo sacado a propósito de la caja (retiros parciales); resta del esperado. */
+  retirosEfectivo: number;
   /** Solo para conciliar con el banco: no entra en el efectivo esperado. */
   transferencias: number;
   /** Solo para conciliar con el datáfono: no entra en el efectivo esperado. */
@@ -82,4 +84,32 @@ export interface ConteoDenominacionRequest {
 export interface CerrarTurnoRequest {
   conteo: ConteoDenominacionRequest[];
   nota: string | null;
+}
+
+// Retiros parciales de efectivo de la caja (ver RetiroCajaDtos.cs).
+export interface RetiroCaja {
+  id: number;
+  turnoCajaId: number;
+  empleadoId: number;
+  empleadoNombre: string;
+  fecha: string;
+  monto: number;
+  anulado: boolean;
+  anuladoPorNombre: string | null;
+  fechaAnulacion: string | null;
+}
+
+export interface RetirosPorDia {
+  fecha: string;
+  cantidad: number;
+  total: number;
+}
+
+export interface ReporteRetiros {
+  desde: string;
+  hasta: string;
+  totalRetirado: number;
+  cantidadRetiros: number;
+  porDia: RetirosPorDia[];
+  retiros: RetiroCaja[];
 }
