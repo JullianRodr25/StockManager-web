@@ -43,3 +43,15 @@ export async function registrarEmpleado(
     token,
   });
 }
+
+// Cambio de contraseña del propio empleado autenticado: exige la contraseña actual.
+export async function cambiarContrasena(
+  datos: { passwordActual: string; passwordNueva: string },
+  token: string | null
+): Promise<MensajeResponse> {
+  return apiRequest<MensajeResponse>('/api/auth/cambiar-contrasena', {
+    method: 'POST',
+    body: datos,
+    token,
+  });
+}

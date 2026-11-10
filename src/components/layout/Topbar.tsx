@@ -1,10 +1,12 @@
-import { Menu, Moon, Sun } from 'lucide-react';
+import { useState } from 'react';
+import { KeyRound, Menu, Moon, Sun } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { BotonAudioFerreteria } from './BotonAudioFerreteria';
+import { CambiarContrasenaDialog } from './CambiarContrasenaDialog';
 import { NotificacionesBell } from './NotificacionesBell';
 import { esOperativo, etiquetaDeRol } from '@/utils/permisos';
 import {
@@ -66,6 +68,7 @@ interface TopbarProps {
 export function Topbar({ onMenuClick }: TopbarProps) {
   const { usuario, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [cambiandoContrasena, setCambiandoContrasena] = useState(false);
   const location = useLocation();
   const titulo = TITULOS_POR_RUTA[location.pathname] ?? 'StockManager';
   const seccion = seccionDeRuta(location.pathname);
@@ -114,12 +117,18 @@ export function Topbar({ onMenuClick }: TopbarProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setCambiandoContrasena(true)} className="cursor-pointer">
+              <KeyRound className="mr-2 h-4 w-4" />
+              Cambiar contraseña
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={logout} className="cursor-pointer text-error-text focus:text-error-text">
               Cerrar sesión
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <CambiarContrasenaDialog open={cambiandoContrasena} onOpenChange={setCambiandoContrasena} />
     </header>
   );
 }
