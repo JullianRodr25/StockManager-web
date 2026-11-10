@@ -1,4 +1,7 @@
+import { useState } from 'react';
+import { Loader2, Pencil } from 'lucide-react';
 import { formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
+import { Button } from '@/components/ui/button';
 import type { TurnoCaja } from '@/types/caja';
 
 function Fila({ etiqueta, valor, fuerte }: { etiqueta: string; valor: string; fuerte?: boolean }) {
@@ -53,8 +56,38 @@ export function ResumenTurno({ turno }: { turno: TurnoCaja }) {
 }
 
 /** Resultado de un turno cerrado: contado vs esperado, diferencia, nota y detalle del conteo. */
-export function ResumenCierre({ turno }: { turno: TurnoCaja }) {
+interface ResumenCierreProps {
+  turno: TurnoCaja;
+  /** Si se pasa, la nota se puede editar (lo único editable de un cierre). Debe lanzar si falla. */
+  onGuardarNota?: (nota: string) => Promise<void>;
+}
+
+export function ResumenCierre({ turno, onGuardarNota }: ResumenCierreProps) {
   const diferencia = turno.diferencia ?? 0;
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [errorNota, setErrorNota] = useState<string | null>(null);
+
+  function empezarEdicion() {
+    setBorrador(turno.notaCierre ?? '');
+    setErrorNota(null);
+    setEditando(true);
+  }
+
+  async function guardar() {
+    if (!onGuardarNota) return;
+    setGuardando(true);
+    setErrorNota(null);
+    try {
+      await onGuardarNota(borrador);
+      setEditando(false);
+    } catch (err) {
+      setErrorNota(err instanceof Error ? err.message : 'No se pudo guardar la nota.');
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -77,11 +110,65 @@ export function ResumenCierre({ turno }: { turno: TurnoCaja }) {
         />
       </div>
 
-      {turno.notaCierre && (
-        <p className="rounded-md bg-muted/40 p-3 text-sm text-navy">
-          <span className="font-semibold">Nota: </span>
-          {turno.notaCierre}
-        </p>
+      {editando ? (
+        <div className="space-y-2">
+          <label htmlFor="nota-cierre-edicion" className="text-sm font-semibold text-navy">
+            Nota{diferencia !== 0 ? ' (obligatoria por la diferencia)' : ''}
+          </label>
+          <textarea
+            id="nota-cierre-edicion"
+            value={borrador}
+            onChange={(e) => setBorrador(e.target.value)}
+            maxLength={300}
+            rows={3}
+            autoFocus
+            disabled={guardando}
+            placeholder="Explica por qué sobró o faltó efectivo"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-navy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <div className="flex items-center justify-between text-xs text-text-muted">
+            <span>{borrador.length}/300</span>
+          </div>
+          {errorNota && <p className="text-sm text-error-text">{errorNota}</p>}
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="gold" onClick={guardar} disabled={guardando}>
+              {guardando && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              Guardar nota
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setEditando(false)} disabled={guardando}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        (turno.notaCierre || onGuardarNota) && (
+          <div className="space-y-1">
+            <div className="flex items-start justify-between gap-2 rounded-md bg-muted/40 p-3 text-sm text-navy">
+              <p>
+                <span className="font-semibold">Nota: </span>
+                {turno.notaCierre ?? <span className="text-text-muted">Sin nota</span>}
+              </p>
+              {onGuardarNota && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={empezarEdicion}
+                  aria-label="Editar nota"
+                  title="Editar nota"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            {turno.notaActualizadaPorNombre && turno.notaActualizadaEn && (
+              <p className="text-xs text-text-muted">
+                Nota editada por {turno.notaActualizadaPorNombre} · {formatoFecha(turno.notaActualizadaEn)}
+              </p>
+            )}
+          </div>
+        )
       )}
 
       {turno.conteo && turno.conteo.length > 0 && (

@@ -11,11 +11,13 @@ import {
   forzarCierreTurno,
   obtenerApertura,
   obtenerHistorialTurnos,
+  actualizarNotaTurno,
   obtenerTurno,
   verificarContrasenaCajon,
 } from '@/services/cajaService';
 import { obtenerConfiguracion } from '@/services/configuracionService';
 import { abrirCajon, imprimirCierreCaja } from '@/services/impresionService';
+import { esHoyEnColombia } from '@/utils/fechasColombia';
 import { formatoFecha, formatoMoneda } from '@/components/DetalleFacturaDialog';
 import { FormularioCierre } from '@/components/caja/FormularioCierre';
 import { ReporteRetirosCaja } from '@/components/caja/ReporteRetirosCaja';
@@ -123,6 +125,25 @@ export function Caja() {
   useEffect(() => {
     cargarHistorial();
   }, [cargarHistorial]);
+
+  // Edita la nota de un cierre (lo único editable): el servidor devuelve el turno actualizado y se
+  // refleja donde se esté mostrando ese cierre.
+  async function handleGuardarNota(turnoId: number, nota: string) {
+    const actualizado = await actualizarNotaTurno(turnoId, nota, token);
+    setDetalle((actual) => (actual?.id === turnoId ? actualizado : actual));
+    setCierreReciente((actual) => (actual?.id === turnoId ? actualizado : actual));
+    toast.success('Nota actualizada');
+  }
+
+  // La nota solo se edita en cajas cerradas hoy (el servidor lo valida igual) y por su dueño o un Admin.
+  function notaEditable(cierre: TurnoCaja): boolean {
+    return (
+      cierre.estado === 'Cerrado' &&
+      cierre.fechaCierre !== null &&
+      esHoyEnColombia(cierre.fechaCierre) &&
+      (esAdmin || cierre.empleadoId === Number(usuario?.id))
+    );
+  }
 
   async function handleAbrir(e: FormEvent) {
     e.preventDefault();
@@ -307,7 +328,7 @@ export function Caja() {
                 <CardTitle className="text-navy">Caja cerrada</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <ResumenCierre turno={cierreReciente} />
+                <ResumenCierre turno={cierreReciente} onGuardarNota={notaEditable(cierreReciente) ? (nota) => handleGuardarNota(cierreReciente.id, nota) : undefined} />
                 <div className="flex gap-2">
                   <Button type="button" variant="gold" onClick={() => handleImprimir(cierreReciente)}>
                     <Printer className="mr-2 h-4 w-4" />
@@ -538,7 +559,7 @@ export function Caja() {
           </DialogHeader>
           {detalle && (
             <div className="space-y-4">
-              <ResumenCierre turno={detalle} />
+              <ResumenCierre turno={detalle} onGuardarNota={notaEditable(detalle) ? (nota) => handleGuardarNota(detalle.id, nota) : undefined} />
               <Button type="button" variant="gold" onClick={() => handleImprimir(detalle)}>
                 <Printer className="mr-2 h-4 w-4" />
                 Imprimir cierre

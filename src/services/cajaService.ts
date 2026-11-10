@@ -41,6 +41,11 @@ export async function forzarCierreTurno(
   return apiRequest<TurnoCaja>(`/api/caja/${id}/forzar-cierre`, { method: 'POST', body: data, token });
 }
 
+/** Edita la nota de un turno cerrado; los montos del cierre no cambian. */
+export async function actualizarNotaTurno(id: number, nota: string, token: string | null): Promise<TurnoCaja> {
+  return apiRequest<TurnoCaja>(`/api/caja/${id}/nota`, { method: 'PUT', body: { nota }, token });
+}
+
 export async function obtenerTurno(id: number, token: string | null): Promise<TurnoCaja> {
   return apiRequest<TurnoCaja>(`/api/caja/${id}`, { token });
 }

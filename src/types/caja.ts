@@ -39,6 +39,9 @@ export interface TurnoCaja {
   efectivoContado: number | null;
   diferencia: number | null;
   notaCierre: string | null;
+  /** Quién y cuándo editó la nota después del cierre; null si es la original. */
+  notaActualizadaPorNombre?: string | null;
+  notaActualizadaEn?: string | null;
   conteo: ConteoDenominacion[] | null;
 }
 
