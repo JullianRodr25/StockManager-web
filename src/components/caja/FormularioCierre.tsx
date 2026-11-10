@@ -14,6 +14,8 @@ interface FormularioCierreProps {
   error: string | null;
   onConfirmar: (request: CerrarTurnoRequest) => void;
   onCancelar: () => void;
+  /** Si se pasa, el formulario ofrece retirar efectivo sin salir del cierre (solo en el turno propio). */
+  onRetirarEfectivo?: () => void;
 }
 
 /**
@@ -21,7 +23,7 @@ interface FormularioCierreProps {
  * es false) no se muestra el esperado ni la diferencia hasta que el turno queda cerrado; el
  * servidor es quien exige la nota cuando hay diferencia.
  */
-export function FormularioCierre({ turno, enviando, error, onConfirmar, onCancelar }: FormularioCierreProps) {
+export function FormularioCierre({ turno, enviando, error, onConfirmar, onCancelar, onRetirarEfectivo }: FormularioCierreProps) {
   const [cantidades, setCantidades] = useState<CantidadesPorDenominacion>({});
   const [nota, setNota] = useState('');
 
@@ -66,9 +68,14 @@ export function FormularioCierre({ turno, enviando, error, onConfirmar, onCancel
         </div>
       )}
 
-      <p className="text-xs text-text-muted">
-        Cuenta solo el efectivo que queda en la caja. Si ya sacaste dinero, registra ese retiro antes de cerrar.
-      </p>
+      <div className="space-y-2 text-xs text-text-muted">
+        <p>Cuenta solo el efectivo que queda en la caja. Si ya sacaste dinero, regístralo como retiro antes de cerrar.</p>
+        {onRetirarEfectivo && (
+          <Button type="button" variant="outline" size="sm" onClick={onRetirarEfectivo} disabled={enviando}>
+            Retirar efectivo
+          </Button>
+        )}
+      </div>
 
       {!turno.esperadoVisible && (
         <p className="text-xs text-text-muted">

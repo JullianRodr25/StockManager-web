@@ -264,6 +264,7 @@ export function Caja() {
                 enviando={enviandoCierre}
                 error={errorCierre}
                 onConfirmar={handleCerrar}
+                onRetirarEfectivo={() => setRetirando(true)}
                 onCancelar={() => {
                   setCerrando(false);
                   setErrorCierre(null);
