@@ -200,6 +200,7 @@ export function CotizacionDialog({ open, cotizacion, esAdmin, onOpenChange, onGu
               disabled={guardando}
               placeholder="Buscar producto por nombre o escanear código..."
               autoFocus={false}
+              incluirSinStock
             />
 
             {lineas.length === 0 ? (

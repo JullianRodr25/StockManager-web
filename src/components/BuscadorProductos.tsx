@@ -36,6 +36,9 @@ interface BuscadorProductosProps {
   variante?: 'tarjeta' | 'integrado';
   placeholder?: string;
   autoFocus?: boolean;
+  // Ofrece también productos sin stock (ej. cotizaciones: no se reserva inventario, así que se
+  // puede cotizar algo que hoy no hay). En Ventas se deja en false: no se puede vender sin stock.
+  incluirSinStock?: boolean;
 }
 
 export function BuscadorProductos({
@@ -51,6 +54,7 @@ export function BuscadorProductos({
   variante = 'tarjeta',
   placeholder = 'Escanea el código o escribe el nombre del producto...',
   autoFocus = true,
+  incluirSinStock = false,
 }: BuscadorProductosProps) {
   const [terminoBusqueda, setTerminoBusqueda] = useState('');
   const [buscandoCodigo, setBuscandoCodigo] = useState(false);
@@ -113,7 +117,7 @@ export function BuscadorProductos({
 
   // Un producto sin stock (o inactivo) no se puede vender, así que ni se ofrece en el buscador:
   // evita que el cajero lo seleccione para encontrarse con el error de "sin stock" después.
-  const vendible = (producto: Producto) => producto.activo && producto.stockActual > 0;
+  const vendible = (producto: Producto) => producto.activo && (incluirSinStock || producto.stockActual > 0);
 
   let resultadosBusqueda: Producto[];
   if (buscaEnServidor && resultadosServidor) {
@@ -282,7 +286,7 @@ export function BuscadorProductos({
                 >
                   <span className="text-navy">{producto.nombre}</span>
                   <span className="whitespace-nowrap text-text-muted">
-                    {formatoMoneda.format(producto.precio)} · {producto.stockActual} disp.
+                    {formatoMoneda.format(producto.precio)} · {producto.stockActual > 0 ? `${producto.stockActual} disp.` : 'sin stock'}
                   </span>
                 </button>
               ))
