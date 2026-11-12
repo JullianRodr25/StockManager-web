@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CreditCard, Eye, Undo2 } from 'lucide-react';
+import { CreditCard, Eye, Loader2, Printer, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/services/api';
 import { PantallaCargaLogo } from '@/components/PantallaCargaLogo';
+import { descargarPdfFacturaDeVenta } from '@/services/facturaService';
 import { obtenerVentaPorId, obtenerVentas } from '@/services/ventaService';
 import type { VentaResponse, VentaResumenResponse } from '@/types/ventas';
 import { BadgeEstado, DetalleFacturaDialog, formatoFecha, formatoMoneda, nombreComprador } from '@/components/DetalleFacturaDialog';
 import { CambiarMetodoPagoDialog } from '@/components/CambiarMetodoPagoDialog';
 import { DevolucionDialog } from '@/components/DevolucionDialog';
+import { descargarArchivo } from '@/lib/descargarArchivo';
 import { esHoyEnColombia } from '@/utils/fechasColombia';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,6 +50,7 @@ export function HistorialVentas() {
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState<VentaResponse | null>(null);
+  const [imprimiendoId, setImprimiendoId] = useState<number | null>(null);
   const [ventaADevolver, setVentaADevolver] = useState<VentaResumenResponse | null>(null);
   const [ventaCambioMetodo, setVentaCambioMetodo] = useState<VentaResumenResponse | null>(null);
 
@@ -83,6 +86,32 @@ export function HistorialVentas() {
 
   function irAPagina(nuevaPagina: number) {
     cargarVentas(nuevaPagina);
+  }
+
+  /**
+   * Abre el PDF de la factura en una pestaña nueva, listo para imprimir (Ctrl+P) o guardar.
+   * La pestaña se abre ANTES de pedir el archivo: si se abriera después del await, el
+   * navegador la bloquearía como ventana emergente por no venir directo del clic.
+   */
+  async function imprimirFactura(ventaId: number) {
+    const ventana = window.open('', '_blank');
+    setImprimiendoId(ventaId);
+    try {
+      const pdf = await descargarPdfFacturaDeVenta(ventaId, token);
+      const url = URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' }));
+      if (ventana) {
+        ventana.location.href = url;
+      } else {
+        descargarArchivo(pdf, `factura-venta-${ventaId}.pdf`);
+      }
+      // Se libera tarde para no cortar la carga del visor de PDF.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      ventana?.close();
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo generar la factura.');
+    } finally {
+      setImprimiendoId(null);
+    }
   }
 
   async function abrirDetalle(venta: VentaResumenResponse) {
@@ -215,6 +244,24 @@ export function HistorialVentas() {
                           }}
                         >
                           <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          aria-label={`Imprimir factura ${venta.numeroFactura}`}
+                          title="Imprimir factura"
+                          disabled={imprimiendoId === venta.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void imprimirFactura(venta.id);
+                          }}
+                        >
+                          {imprimiendoId === venta.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                          ) : (
+                            <Printer className="h-4 w-4" />
+                          )}
                         </Button>
                         {/* Solo el mismo día de la venta y si no se pagó con abonos; el servidor
                             valida de nuevo (y además bloquea si el turno ya cerró). */}
