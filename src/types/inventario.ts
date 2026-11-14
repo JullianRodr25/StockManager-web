@@ -26,6 +26,8 @@ export interface Producto {
   activo: boolean;
   aplicaIva: boolean;
   tarifaIva: number;
+  /** Código DIAN de la unidad de medida ("94" = unidad). */
+  unidadMedidaDian: string;
   // Costo de adquisición, para métricas de rentabilidad. Nunca se muestra al cliente.
   costo: number;
   proveedorId: number | null;
@@ -53,6 +55,7 @@ export interface CrearProductoRequest {
   codigoBarras?: string;
   aplicaIva: boolean;
   tarifaIva?: number;
+  unidadMedidaDian?: string;
   costo: number;
   proveedorId?: number | null;
 }
@@ -67,6 +70,7 @@ export interface ActualizarProductoRequest {
   codigoBarras?: string;
   aplicaIva: boolean;
   tarifaIva?: number;
+  unidadMedidaDian?: string;
   costo: number;
   proveedorId?: number | null;
 }

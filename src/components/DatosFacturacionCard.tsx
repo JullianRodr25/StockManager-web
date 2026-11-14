@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MunicipioDaneSelect } from '@/components/fiscal/MunicipioDaneSelect';
 
 interface DatosFacturacionCardProps {
   configuracion: ConfiguracionGeneral | null;
@@ -23,6 +24,7 @@ interface DatosFacturacionCardProps {
 // (número / fecha / null) solo al guardar, en un único lugar.
 interface FormularioFacturacion {
   ciudadEmpresa: string;
+  codigoMunicipioEmpresa: string;
   barrioEmpresa: string;
   responsabilidadIvaEmpresa: string;
   actividadEconomicaEmpresa: string;
@@ -42,6 +44,7 @@ const numeroONull = (texto: string): number | null => (texto.trim() === '' ? nul
 function aFormulario(c: ConfiguracionGeneral): FormularioFacturacion {
   return {
     ciudadEmpresa: c.ciudadEmpresa ?? '',
+    codigoMunicipioEmpresa: c.codigoMunicipioEmpresa ?? '',
     barrioEmpresa: c.barrioEmpresa ?? '',
     responsabilidadIvaEmpresa: c.responsabilidadIvaEmpresa ?? '',
     actividadEconomicaEmpresa: c.actividadEconomicaEmpresa ?? '',
@@ -103,6 +106,7 @@ export function DatosFacturacionCard({
         {
           ...aRequest(configuracion),
           ciudadEmpresa: vacioANull(form.ciudadEmpresa),
+          codigoMunicipioEmpresa: vacioANull(form.codigoMunicipioEmpresa),
           barrioEmpresa: vacioANull(form.barrioEmpresa),
           responsabilidadIvaEmpresa: vacioANull(form.responsabilidadIvaEmpresa),
           actividadEconomicaEmpresa: vacioANull(form.actividadEconomicaEmpresa),
@@ -158,6 +162,14 @@ export function DatosFacturacionCard({
                 <Label htmlFor="ciudadEmpresa">Ciudad</Label>
                 <Input id="ciudadEmpresa" placeholder="Ej. Bogotá, D.C." value={form.ciudadEmpresa}
                   onChange={(e) => cambiar('ciudadEmpresa', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="codigoMunicipioEmpresa">Municipio DANE (factura electrónica)</Label>
+                <MunicipioDaneSelect
+                  id="codigoMunicipioEmpresa"
+                  value={form.codigoMunicipioEmpresa}
+                  onChange={(codigo) => cambiar('codigoMunicipioEmpresa', codigo)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="barrioEmpresa">Barrio</Label>

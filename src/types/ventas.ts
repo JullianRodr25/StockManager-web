@@ -66,6 +66,9 @@ export interface RegistrarVentaRequest {
   // Cotización de origen ("traer cotización"): el backend respeta sus precios en los productos
   // que siguen en la venta y la deja convertida y ligada a ella.
   cotizacionId?: number | null;
+  // Datos que exige la DIAN; si se omiten el backend los toma del Cliente.
+  tipoPersonaFiscal?: 'Natural' | 'Juridica' | null;
+  codigoMunicipioFiscal?: string | null;
 }
 
 export interface DetalleVentaResponse {

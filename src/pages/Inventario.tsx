@@ -63,6 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { UNIDADES_MEDIDA } from '@/utils/fiscal';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -79,6 +80,7 @@ interface NuevoProductoForm {
   codigoBarras: string;
   aplicaIva: boolean;
   tarifaIva: string;
+  unidadMedidaDian: string;
   costo: string;
   proveedorId: string;
 }
@@ -92,6 +94,7 @@ const formularioVacio: NuevoProductoForm = {
   codigoBarras: '',
   aplicaIva: true,
   tarifaIva: '',
+  unidadMedidaDian: '94',
   costo: '',
   proveedorId: '',
 };
@@ -428,6 +431,7 @@ export function Inventario() {
       codigoBarras: producto.codigoBarras ?? '',
       aplicaIva: producto.aplicaIva,
       tarifaIva: String(producto.tarifaIva || (tarifaIvaGeneral ?? '')),
+      unidadMedidaDian: producto.unidadMedidaDian || '94',
       costo: String(producto.costo),
       proveedorId: producto.proveedorId ? String(producto.proveedorId) : '',
     });
@@ -505,6 +509,7 @@ export function Inventario() {
           stockMinimo,
           aplicaIva: formulario.aplicaIva,
           tarifaIva,
+          unidadMedidaDian: formulario.unidadMedidaDian,
           costo,
           proveedorId,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
@@ -520,6 +525,7 @@ export function Inventario() {
           stockMinimo,
           aplicaIva: formulario.aplicaIva,
           tarifaIva,
+          unidadMedidaDian: formulario.unidadMedidaDian,
           costo,
           proveedorId,
           ...(formulario.codigoBarras.trim() ? { codigoBarras: formulario.codigoBarras.trim() } : {}),
@@ -1130,6 +1136,24 @@ export function Inventario() {
                   onChange={(e) => actualizarCampoFormulario('stockMinimo', e.target.value)}
                   required
                 />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="unidadMedidaDian">Unidad de medida (factura electrónica)</Label>
+                <Select
+                  value={formulario.unidadMedidaDian}
+                  onValueChange={(valor) => actualizarCampoFormulario('unidadMedidaDian', valor)}
+                >
+                  <SelectTrigger id="unidadMedidaDian">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNIDADES_MEDIDA.map((u) => (
+                      <SelectItem key={u.codigo} value={u.codigo}>
+                        {u.etiqueta}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="aplicaIva">¿Aplica IVA?</Label>

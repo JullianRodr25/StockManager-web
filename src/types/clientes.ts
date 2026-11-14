@@ -22,6 +22,10 @@ export interface Cliente {
   razonSocialFiscal: string | null;
   direccionFiscal: string | null;
   emailFacturacion: string | null;
+  /** "Natural" | "Juridica": la DIAN lo exige para facturar. */
+  tipoPersona: 'Natural' | 'Juridica' | null;
+  /** Código DANE (5 dígitos) del municipio del adquirente. */
+  codigoMunicipioDane: string | null;
   /** true si tiene lo mínimo (tipo + número de documento fiscal y razón social) para pedir factura electrónica sin pasos extra. */
   tieneDatosFacturacionElectronicaCompletos: boolean;
 }
@@ -38,6 +42,8 @@ export interface CrearClienteRequest {
   razonSocialFiscal?: string | null;
   direccionFiscal?: string | null;
   emailFacturacion?: string | null;
+  tipoPersona?: 'Natural' | 'Juridica' | null;
+  codigoMunicipioDane?: string | null;
 }
 
 export interface ActualizarClienteRequest {
@@ -53,6 +59,8 @@ export interface ActualizarDatosFacturacionRequest {
   razonSocialFiscal: string | null;
   direccionFiscal: string | null;
   emailFacturacion: string | null;
+  tipoPersona: 'Natural' | 'Juridica' | null;
+  codigoMunicipioDane: string | null;
 }
 
 export interface ClienteCreadoResponse {

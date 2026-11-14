@@ -54,6 +54,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { AyudaDigitoVerificacion, CamposFiscalesDian } from '@/components/fiscal/CamposFiscalesDian';
+import { sugerirTipoPersona } from '@/utils/fiscal';
+import type { TipoPersona } from '@/utils/fiscal';
 
 interface ClienteForm {
   numeroIdentificacion: string;
@@ -83,6 +86,8 @@ interface DatosFacturacionForm {
   razonSocialFiscal: string;
   direccionFiscal: string;
   emailFacturacion: string;
+  tipoPersona: TipoPersona | '';
+  codigoMunicipioDane: string;
 }
 
 const datosFacturacionVacio: DatosFacturacionForm = {
@@ -91,6 +96,8 @@ const datosFacturacionVacio: DatosFacturacionForm = {
   razonSocialFiscal: '',
   direccionFiscal: '',
   emailFacturacion: '',
+  tipoPersona: '',
+  codigoMunicipioDane: '',
 };
 
 const tiposDocumentoFiscal: { valor: TipoDocumentoFiscal; etiqueta: string }[] = [
@@ -173,6 +180,8 @@ export function Clientes() {
       razonSocialFiscal: cliente.razonSocialFiscal ?? '',
       direccionFiscal: cliente.direccionFiscal ?? '',
       emailFacturacion: cliente.emailFacturacion ?? '',
+      tipoPersona: cliente.tipoPersona ?? '',
+      codigoMunicipioDane: cliente.codigoMunicipioDane ?? '',
     });
     setErrorFormulario(null);
     setDialogAbierto(true);
@@ -206,6 +215,8 @@ export function Clientes() {
         razonSocialFiscal: datosFacturacion.razonSocialFiscal.trim() || null,
         direccionFiscal: datosFacturacion.direccionFiscal.trim() || null,
         emailFacturacion: datosFacturacion.emailFacturacion.trim() || null,
+        tipoPersona: datosFacturacion.tipoPersona || null,
+        codigoMunicipioDane: datosFacturacion.codigoMunicipioDane || null,
       };
 
       if (clienteEditando) {
@@ -485,7 +496,11 @@ export function Clientes() {
                   <Select
                     value={datosFacturacion.tipoDocumentoFiscal}
                     onValueChange={(valor) =>
-                      setDatosFacturacion((previo) => ({ ...previo, tipoDocumentoFiscal: valor as TipoDocumentoFiscal }))
+                      setDatosFacturacion((previo) => ({
+                        ...previo,
+                        tipoDocumentoFiscal: valor as TipoDocumentoFiscal,
+                        tipoPersona: previo.tipoPersona || sugerirTipoPersona(valor),
+                      }))
                     }
                   >
                     <SelectTrigger id="tipoDocumentoFiscal">
@@ -508,10 +523,22 @@ export function Clientes() {
                     onChange={(e) =>
                       setDatosFacturacion((previo) => ({ ...previo, numeroDocumentoFiscal: e.target.value }))
                     }
-                    placeholder="Ej. NIT con dígito de verificación"
+                    placeholder="NIT sin dígito de verificación"
+                  />
+                  <AyudaDigitoVerificacion
+                    tipoDocumento={datosFacturacion.tipoDocumentoFiscal}
+                    numero={datosFacturacion.numeroDocumentoFiscal}
                   />
                 </div>
               </div>
+
+              <CamposFiscalesDian
+                idBase="cliente"
+                tipoPersona={datosFacturacion.tipoPersona}
+                codigoMunicipio={datosFacturacion.codigoMunicipioDane}
+                onTipoPersonaChange={(v) => setDatosFacturacion((p) => ({ ...p, tipoPersona: v }))}
+                onCodigoMunicipioChange={(c) => setDatosFacturacion((p) => ({ ...p, codigoMunicipioDane: c }))}
+              />
 
               <div className="space-y-2">
                 <Label htmlFor="razonSocialFiscal">Razón social</Label>

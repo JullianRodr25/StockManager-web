@@ -44,6 +44,9 @@ import {
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { AyudaDigitoVerificacion, CamposFiscalesDian } from '@/components/fiscal/CamposFiscalesDian';
+import { sugerirTipoPersona } from '@/utils/fiscal';
+import type { TipoPersona } from '@/utils/fiscal';
 
 const TAMANO_PAGINA_PRODUCTOS = 500;
 
@@ -111,6 +114,8 @@ interface DatosFacturaForm {
   razonSocialFiscal: string;
   direccionFiscal: string;
   emailFacturacion: string;
+  tipoPersona: TipoPersona | '';
+  codigoMunicipioDane: string;
 }
 
 const datosFacturaVacio: DatosFacturaForm = {
@@ -119,6 +124,8 @@ const datosFacturaVacio: DatosFacturaForm = {
   razonSocialFiscal: '',
   direccionFiscal: '',
   emailFacturacion: '',
+  tipoPersona: '',
+  codigoMunicipioDane: '',
 };
 
 // Dos líneas vacías por defecto: un pago "Mixto" no tiene sentido con menos de dos métodos.
@@ -266,6 +273,8 @@ export function Ventas() {
       razonSocialFiscal: clienteSeleccionado.razonSocialFiscal ?? '',
       direccionFiscal: clienteSeleccionado.direccionFiscal ?? '',
       emailFacturacion: clienteSeleccionado.emailFacturacion ?? '',
+      tipoPersona: clienteSeleccionado.tipoPersona ?? '',
+      codigoMunicipioDane: clienteSeleccionado.codigoMunicipioDane ?? '',
     });
   }, [modoComprador, clienteSeleccionado]);
 
@@ -693,13 +702,14 @@ export function Ventas() {
     const datosFacturaCompletos =
       datosFactura.tipoDocumentoFiscal !== '' &&
       datosFactura.numeroDocumentoFiscal.trim() !== '' &&
-      datosFactura.razonSocialFiscal.trim() !== '';
+      datosFactura.razonSocialFiscal.trim() !== '' &&
+      datosFactura.tipoPersona !== '';
     const clienteTieneDatosFiscales = clienteSeleccionado?.tieneDatosFacturacionElectronicaCompletos ?? false;
 
     if (requiereFacturaElectronica) {
       if (modoComprador === 'registrado' && !clienteTieneDatosFiscales && !datosFacturaCompletos) {
         setErrorFormulario(
-          'Para solicitar factura electrónica, completa tipo y número de documento fiscal, y la razón social.'
+          'Para solicitar factura electrónica, completa tipo y número de documento fiscal, razón social y tipo de persona.'
         );
         return;
       }
@@ -738,6 +748,8 @@ export function Ventas() {
             razonSocialFiscal: datosFactura.razonSocialFiscal.trim() || null,
             direccionFiscal: datosFactura.direccionFiscal.trim() || null,
             emailFacturacion: datosFactura.emailFacturacion.trim() || null,
+            tipoPersona: datosFactura.tipoPersona || null,
+            codigoMunicipioDane: datosFactura.codigoMunicipioDane || null,
           },
           token
         );
@@ -787,6 +799,8 @@ export function Ventas() {
                   razonSocialFiscal: datosFactura.razonSocialFiscal.trim() || null,
                   direccionFiscal: datosFactura.direccionFiscal.trim() || null,
                   emailFacturacion: datosFactura.emailFacturacion.trim() || null,
+                  tipoPersonaFiscal: datosFactura.tipoPersona || null,
+                  codigoMunicipioFiscal: datosFactura.codigoMunicipioDane || null,
                 }
               : {}),
           }
@@ -1170,7 +1184,11 @@ export function Ventas() {
                       <Select
                         value={datosFactura.tipoDocumentoFiscal}
                         onValueChange={(valor) =>
-                          setDatosFactura((previo) => ({ ...previo, tipoDocumentoFiscal: valor as TipoDocumentoFiscal }))
+                          setDatosFactura((previo) => ({
+                            ...previo,
+                            tipoDocumentoFiscal: valor as TipoDocumentoFiscal,
+                            tipoPersona: previo.tipoPersona || sugerirTipoPersona(valor),
+                          }))
                         }
                       >
                         <SelectTrigger id="tipoDocumentoFiscalVenta" disabled={registrando}>
@@ -1195,8 +1213,20 @@ export function Ventas() {
                         }
                         disabled={registrando}
                       />
+                      <AyudaDigitoVerificacion
+                        tipoDocumento={datosFactura.tipoDocumentoFiscal}
+                        numero={datosFactura.numeroDocumentoFiscal}
+                      />
                     </div>
                   </div>
+                  <CamposFiscalesDian
+                    idBase="venta"
+                    tipoPersona={datosFactura.tipoPersona}
+                    codigoMunicipio={datosFactura.codigoMunicipioDane}
+                    onTipoPersonaChange={(v) => setDatosFactura((p) => ({ ...p, tipoPersona: v }))}
+                    onCodigoMunicipioChange={(c) => setDatosFactura((p) => ({ ...p, codigoMunicipioDane: c }))}
+                    disabled={registrando}
+                  />
                   <div className="space-y-2">
                     <Label htmlFor="razonSocialFiscalVenta">Razón social / nombre completo</Label>
                     <Input

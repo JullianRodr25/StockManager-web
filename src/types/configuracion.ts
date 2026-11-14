@@ -15,6 +15,8 @@ export interface ConfiguracionGeneral {
   emailEmpresa: string | null;
   /** Datos de facturación (todos opcionales; Gold los crea/edita en Configuración). */
   ciudadEmpresa: string | null;
+  /** Código DANE (5 dígitos) del municipio de la empresa; lo piden los proveedores de factura electrónica. */
+  codigoMunicipioEmpresa: string | null;
   barrioEmpresa: string | null;
   responsabilidadIvaEmpresa: string | null;
   actividadEconomicaEmpresa: string | null;
@@ -45,6 +47,8 @@ export interface ActualizarConfiguracionRequest {
   emailEmpresa: string | null;
   /** Datos de facturación (todos opcionales; Gold los crea/edita en Configuración). */
   ciudadEmpresa: string | null;
+  /** Código DANE (5 dígitos) del municipio de la empresa; lo piden los proveedores de factura electrónica. */
+  codigoMunicipioEmpresa: string | null;
   barrioEmpresa: string | null;
   responsabilidadIvaEmpresa: string | null;
   actividadEconomicaEmpresa: string | null;
